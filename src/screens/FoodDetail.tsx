@@ -107,12 +107,12 @@ export function FoodDetail({
     };
     if (entry) {
       updateEntry(entry.id, fields);
-      showToast('Saved');
+      showToast('Saved', undefined, { carry: true });
       goBack(href('/', { date }));
       return;
     }
     const created = addEntry({ ...fields, source: food.id.startsWith('off:') ? 'barcode' : 'food' });
-    showToast(`Added to ${MEAL_LABEL[meal]}`, { label: 'Undo', run: () => deleteEntry(created.id) });
+    showToast(`Added to ${MEAL_LABEL[meal]}`, { label: 'Undo', run: () => deleteEntry(created.id) }, { carry: true });
     finishFlow(href('/', { date }));
   };
 
@@ -120,7 +120,7 @@ export function FoodDetail({
     if (!entry) return;
     deleteEntry(entry.id);
     const { id: _id, createdAt: _c, ...rest } = entry;
-    showToast(`Removed ${entry.name}`, { label: 'Undo', run: () => addEntry(rest) });
+    showToast(`Removed ${entry.name}`, { label: 'Undo', run: () => addEntry(rest) }, { carry: true });
     goBack(href('/', { date }));
   };
 

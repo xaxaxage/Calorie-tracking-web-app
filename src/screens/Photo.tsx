@@ -90,7 +90,7 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
     showToast(`Added ${created.length} ${created.length === 1 ? 'item' : 'items'} to ${MEAL_LABEL[meal]}`, {
       label: 'Undo',
       run: () => created.forEach((e) => deleteEntry(e.id)),
-    });
+    }, { carry: true });
     finishFlow(href('/', { date }));
   };
 

@@ -166,7 +166,7 @@ export function Scan({ meal, date }: { meal: MealId; date: string }) {
       ...macrosFor(food, amount),
       source: 'barcode',
     });
-    showToast(`Added to ${MEAL_LABEL[meal]}`, { label: 'Undo', run: () => deleteEntry(created.id) });
+    showToast(`Added to ${MEAL_LABEL[meal]}`, { label: 'Undo', run: () => deleteEntry(created.id) }, { carry: true });
     close();
   };
 

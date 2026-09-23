@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { getEntry, findFood, getSaveError, useData } from './lib/store';
-import { dismissStaleToast } from './lib/toast';
+import { toastNavigated } from './lib/toast';
 import { isDateKey, todayKey } from './lib/dates';
 import { mealForTime, parseMeal } from './lib/meals';
 import { goBack, useRoute } from './lib/router';
@@ -39,7 +39,7 @@ export function App() {
   const route = useRoute();
   useData();
   const saveError = getSaveError();
-  useEffect(() => dismissStaleToast(), [route.path]);
+  useEffect(() => toastNavigated(), [route.path]);
 
   // An app left open overnight should move on to the new day when it comes back.
   const [, setWake] = useState(0);

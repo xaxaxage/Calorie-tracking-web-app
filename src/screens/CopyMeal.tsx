@@ -40,7 +40,7 @@ export function CopyMeal({ meal, date }: { meal: MealId; date: string }) {
     showToast(`Copied ${n} ${n === 1 ? 'item' : 'items'} to ${MEAL_LABEL[meal]}`, {
       label: 'Undo',
       run: () => created.forEach((e) => deleteEntry(e.id)),
-    });
+    }, { carry: true });
     finishFlow(href('/', { date }));
   };
 

@@ -2,8 +2,9 @@ import { useEffect, useState } from 'preact/hooks';
 
 export interface Toast {
   id: number;
-  createdAt: number;
   message: string;
+  /** Survives the next screen change (for toasts shown right before navigating). */
+  carry: boolean;
   action?: { label: string; run: () => void };
 }
 
@@ -16,16 +17,18 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
-export function showToast(message: string, action?: Toast['action']) {
-  current = { id: nextId++, createdAt: Date.now(), message, action };
+export function showToast(message: string, action?: Toast['action'], opts: { carry?: boolean } = {}) {
+  current = { id: nextId++, message, action, carry: !!opts.carry };
   clearTimeout(timer);
   timer = setTimeout(dismissToast, action ? 5000 : 2600);
   emit();
 }
 
-/** Called on navigation: drop toasts that belong to the screen being left. */
-export function dismissStaleToast(maxAgeMs = 1000) {
-  if (current && Date.now() - current.createdAt > maxAgeMs) dismissToast();
+/** Called on every screen change: drop toasts that belong to the screen being left. */
+export function toastNavigated() {
+  if (!current) return;
+  if (current.carry) current = { ...current, carry: false };
+  else dismissToast();
 }
 
 export function dismissToast() {
