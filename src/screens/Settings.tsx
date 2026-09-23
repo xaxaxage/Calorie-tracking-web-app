@@ -17,6 +17,8 @@ import { goBack } from '../lib/router';
 import { showToast } from '../lib/toast';
 import { ChevronLeft } from '../components/Icons';
 import { GEMINI_SHORTCUTS, listGeminiModels } from '../lib/ai';
+import { SyncSettings } from './SyncSettings';
+import { loadSyncConfig } from '../lib/sync/state';
 
 const GOAL_FIELDS = [
   { key: 'p', label: 'Protein', dot: 'p' },
@@ -173,13 +175,15 @@ export function Settings() {
 
       <AiSettings />
 
+      <SyncSettings />
+
       <section class="card stack-12" aria-labelledby="data-title">
         <h2 id="data-title" class="section-title">
           Your data
         </h2>
         <p class="body-text">
-          Everything you log is saved on this device only ({data.entries.length}{' '}
-          {data.entries.length === 1 ? 'entry' : 'entries'}), with no account or cloud copy. Export a backup now and then
+          Everything you log is saved on this device ({data.entries.length}{' '}
+          {data.entries.length === 1 ? 'entry' : 'entries'}), and on your other devices if sync is on. Export a backup now and then
           and keep it in Files or iCloud Drive so you can restore it on a new phone. Backups don't include your API keys.
         </p>
         <div class="button-pair">
@@ -205,7 +209,8 @@ export function Settings() {
           type="button"
           class="link-btn left danger"
           onClick={() => {
-            if (confirm('Delete every logged entry and favorite on this device? This cannot be undone.')) {
+            const where = loadSyncConfig() ? 'on this device and every synced device' : 'on this device';
+            if (confirm(`Delete every logged entry and favorite ${where}? This cannot be undone.`)) {
               clearAll();
               showToast('All entries deleted');
             }

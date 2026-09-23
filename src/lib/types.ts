@@ -53,6 +53,8 @@ export interface Entry {
   f: number;
   source: EntrySource;
   createdAt: number;
+  /** Last change, for merging between devices. Missing on entries never edited (use createdAt). */
+  updatedAt?: number;
 }
 
 export interface Goals extends Macros {}
@@ -81,9 +83,21 @@ export interface Settings {
   geminiAutoSwitch: boolean;
 }
 
+/** Bookkeeping that lets two devices merge their changes. */
+export interface SyncMeta {
+  /** Deleted entries: id → when, and the entry's day (to find its weekly sync part). */
+  deletedEntries: Record<string, { at: number; date: string }>;
+  /** Food id → when it was starred / unstarred. */
+  favoritedAt: Record<string, number>;
+  unfavoritedAt: Record<string, number>;
+  /** When the daily goals last changed (0 = never). */
+  goalsAt: number;
+}
+
 export interface AppData {
   version: 1;
   entries: Entry[];
   favorites: Food[];
   settings: Settings;
+  meta: SyncMeta;
 }

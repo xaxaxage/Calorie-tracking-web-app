@@ -64,6 +64,37 @@ The app can use either AI; pick one in **Settings → AI estimates**:
 Keys are stored only on your device, requests go straight from your phone to Google or Anthropic, and backups
 leave keys out. Describe → **Match from food list** always works without any key.
 
+## Sync between devices
+
+Like Anytype, devices are linked with a **12-word sync key** — no account.
+
+1. On your first device: **Settings → Sync between devices → Create sync key**. Save the 12 words somewhere safe
+   (a password manager or Notes), tick the box, and tap **Start syncing**.
+2. On each other device: open the app, **Settings → Sync between devices → I have a key**, enter the words and tap
+   **Connect**. What's already on that device is combined with the synced log — nothing is overwritten.
+
+After that, every change syncs by itself within a few seconds while the app is open, and on the next launch
+otherwise. **Show sync key** displays the words again; **Turn off sync on this device** stops syncing but keeps
+the log on that device.
+
+How it works:
+
+- The key is a standard BIP-39 phrase. On the device it is turned (PBKDF2 → HKDF) into a signing key, an
+  AES-256-GCM encryption key and a key for naming data. Everything is compressed and encrypted **before** it
+  leaves the phone.
+- The encrypted data goes to free public [Nostr](https://nostr.com) relays (several at once:
+  `relay.damus.io`, `nos.lol`, `relay.primal.net`, `nostr.mom`, editable under **Relays**) as app-data events
+  (NIP-78). Relays only see a random public key, opaque labels and ciphertext — no food names, dates or amounts.
+- The log is split into weekly parts, so each message stays far below relays' 64 KB limit and only changed weeks
+  are uploaded again.
+- Every device keeps its full log and merges what it receives: the newest edit of an entry wins, a deletion wins
+  over edits made before it, favorites and goals go by time. If a relay loses data, the devices upload it again.
+- API keys are never synced — add your Gemini key on each device.
+
+Things to know: public relays are run by volunteers and can be slow or go away, which is why several are used
+and why each device keeps a full copy — keep exporting a backup now and then. Anyone with the 12 words can read
+and change your log. **Delete all entries** deletes on every synced device.
+
 ## Your data
 
 There is no server and no account. Everything lives in the browser storage (`localStorage`) of the app on
@@ -84,7 +115,7 @@ Things to know when this is your main tracker:
 - **Removing the icon can delete its data**, as can clearing website data. Export a backup first.
 - **Back up regularly:** Settings → Export backup opens the share sheet — save the file to Files / iCloud Drive.
   Settings → Import backup restores it (for example on a new phone). Backups leave out your API keys.
-- **One device only:** there is no sync between devices.
+- **Several devices:** turn on sync (see above) to use the same log on each.
 - **Capacity:** a logged food takes about 0.4 KB and browsers allow a few MB per site, which is on the order of
   a couple of years of detailed logging. If saving ever fails, the app shows a red banner.
 - **Updates** arrive automatically: after a new version is deployed, it loads on the next launch.
@@ -120,6 +151,7 @@ src/
   lib/               store (local storage), foods (built-in list), nutrition math, dates,
                      router, Open Food Facts client, barcode scanner, textmatch (offline describe)
   lib/ai/            Gemini and Claude estimates for photos and descriptions
+  lib/sync/          device sync: sync key and encryption, weekly parts and merging, relay engine
 tests/               unit tests
 ```
 

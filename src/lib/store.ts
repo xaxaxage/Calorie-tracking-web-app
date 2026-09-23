@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { AppData, Entry, Food, Goals, Settings } from './types';
+import type { AppData, Entry, Food, Goals, Settings, SyncMeta } from './types';
 import { MEALS } from './types';
 import { builtinFood } from './foods';
 import { isDateKey } from './dates';
@@ -15,11 +15,16 @@ export function isModelId(value: unknown): value is string {
   return typeof value === 'string' && /^[a-z0-9][a-z0-9.\-_]{1,80}$/i.test(value);
 }
 
+export function emptyMeta(): SyncMeta {
+  return { deletedEntries: {}, favoritedAt: {}, unfavoritedAt: {}, goalsAt: 0 };
+}
+
 export function emptyData(): AppData {
   return {
     version: 1,
     entries: [],
     favorites: [],
+    meta: emptyMeta(),
     settings: {
       goals: { ...DEFAULT_GOALS },
       aiProvider: 'gemini',
@@ -70,8 +75,34 @@ function cleanEntry(raw: any): Entry | undefined {
     f: Math.max(0, num(raw.f)),
     source: ['food', 'barcode', 'photo', 'text', 'quick', 'copy'].includes(raw.source) ? raw.source : 'quick',
     createdAt: num(raw.createdAt, Date.now()),
+    updatedAt: num(raw.updatedAt) > 0 ? num(raw.updatedAt) : undefined,
   };
 }
+
+function cleanTimes(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (raw && typeof raw === 'object') {
+    for (const [k, v] of Object.entries(raw)) if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+  }
+  return out;
+}
+
+export function cleanMeta(raw: any): SyncMeta {
+  const deletedEntries: SyncMeta['deletedEntries'] = {};
+  if (raw?.deletedEntries && typeof raw.deletedEntries === 'object') {
+    for (const [id, v] of Object.entries<any>(raw.deletedEntries)) {
+      if (v && typeof v.at === 'number' && isDateKey(v.date)) deletedEntries[id] = { at: v.at, date: v.date };
+    }
+  }
+  return {
+    deletedEntries,
+    favoritedAt: cleanTimes(raw?.favoritedAt),
+    unfavoritedAt: cleanTimes(raw?.unfavoritedAt),
+    goalsAt: num(raw?.goalsAt),
+  };
+}
+
+export { cleanEntry, cleanFood };
 
 /** Validate data loaded from storage or an imported backup. Throws if it isn't app data. */
 export function parseData(raw: unknown): AppData {
@@ -86,6 +117,7 @@ export function parseData(raw: unknown): AppData {
     version: 1,
     entries: Array.isArray(r.entries) ? r.entries.map(cleanEntry).filter(Boolean) : [],
     favorites: Array.isArray(r.favorites) ? r.favorites.map(cleanFood).filter(Boolean) : [],
+    meta: cleanMeta(r.meta),
     settings: {
       goals: {
         kcal: num(goals.kcal, DEFAULT_GOALS.kcal),
@@ -199,7 +231,10 @@ function stamp(): number {
 }
 
 export function addEntries(items: NewEntry[]): Entry[] {
-  const created = items.map((item) => ({ ...item, id: newId(), createdAt: stamp() }));
+  const created = items.map((item) => {
+    const t = stamp();
+    return { ...item, id: newId(), createdAt: t, updatedAt: t };
+  });
   commit({ ...data, entries: [...data.entries, ...created] });
   return created;
 }
@@ -209,11 +244,22 @@ export function addEntry(item: NewEntry): Entry {
 }
 
 export function updateEntry(id: string, patch: Partial<Omit<Entry, 'id'>>) {
-  commit({ ...data, entries: data.entries.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
+  const t = stamp();
+  commit({ ...data, entries: data.entries.map((e) => (e.id === id ? { ...e, ...patch, updatedAt: t } : e)) });
+}
+
+/** Deleting leaves a note of when, so other devices delete it too. */
+function tombstones(entries: Entry[], at: number): SyncMeta['deletedEntries'] {
+  return Object.fromEntries(entries.map((e) => [e.id, { at, date: e.date }]));
 }
 
 export function deleteEntry(id: string) {
-  commit({ ...data, entries: data.entries.filter((e) => e.id !== id) });
+  const gone = data.entries.filter((e) => e.id === id);
+  commit({
+    ...data,
+    entries: data.entries.filter((e) => e.id !== id),
+    meta: { ...data.meta, deletedEntries: { ...data.meta.deletedEntries, ...tombstones(gone, stamp()) } },
+  });
 }
 
 export function getEntry(id: string): Entry | undefined {
@@ -227,16 +273,20 @@ export function isFavorite(foodId: string): boolean {
 }
 
 export function toggleFavorite(food: Food) {
-  const favorites = isFavorite(food.id)
-    ? data.favorites.filter((f) => f.id !== food.id)
-    : [food, ...data.favorites];
-  commit({ ...data, favorites });
+  const t = stamp();
+  const removing = isFavorite(food.id);
+  const favorites = removing ? data.favorites.filter((f) => f.id !== food.id) : [food, ...data.favorites];
+  const meta = removing
+    ? { ...data.meta, unfavoritedAt: { ...data.meta.unfavoritedAt, [food.id]: t } }
+    : { ...data.meta, favoritedAt: { ...data.meta.favoritedAt, [food.id]: t } };
+  commit({ ...data, favorites, meta });
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────
 
 export function updateSettings(patch: Partial<Settings>) {
-  commit({ ...data, settings: { ...data.settings, ...patch } });
+  const meta = patch.goals ? { ...data.meta, goalsAt: stamp() } : data.meta;
+  commit({ ...data, settings: { ...data.settings, ...patch }, meta });
 }
 
 /** Backup file contents. API keys are left out so a shared or synced backup can't leak them. */
@@ -249,8 +299,26 @@ export function replaceData(next: AppData) {
   commit(next);
 }
 
+/** Delete every entry and favorite (on every synced device, too). */
 export function clearAll() {
-  commit({ ...emptyData(), settings: { ...data.settings } });
+  const t = stamp();
+  const unfavoritedAt = { ...data.meta.unfavoritedAt };
+  for (const f of data.favorites) unfavoritedAt[f.id] = t;
+  commit({
+    ...data,
+    entries: [],
+    favorites: [],
+    meta: {
+      ...data.meta,
+      deletedEntries: { ...data.meta.deletedEntries, ...tombstones(data.entries, t) },
+      unfavoritedAt,
+    },
+  });
+}
+
+/** Replace the data with a merged copy from another device. */
+export function applyMerged(next: AppData) {
+  commit(next);
 }
 
 // ── Derived lists ─────────────────────────────────────────────────────────
