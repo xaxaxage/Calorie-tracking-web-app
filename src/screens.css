@@ -501,6 +501,75 @@
   color: var(--teal);
 }
 
+.tile-icon.green {
+  background: #e4efe6;
+  color: #2f6b3a;
+}
+.describe-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 10px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--ink);
+}
+.describe-row > svg {
+  color: var(--faint);
+  flex-shrink: 0;
+}
+.describe-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+.describe-copy strong {
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.describe-copy span {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.input.textarea {
+  height: auto;
+  min-height: 120px;
+  padding: 14px 16px;
+  line-height: 1.4;
+  resize: vertical;
+}
+.said {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--sunken);
+  border: none;
+  border-radius: 16px;
+  text-align: left;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.said-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.said-edit {
+  font-weight: 700;
+  color: var(--teal);
+}
+
 /* ── Food portion ─────────────────────────────────────────────────────── */
 .food-title {
   font-family: var(--font-display);
@@ -623,6 +692,20 @@
 .file-btn {
   cursor: pointer;
   position: relative;
+}
+
+.segmented.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.steps {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 15px;
+  color: var(--ink-2);
+  line-height: 1.4;
 }
 
 /* ── Barcode scanner ──────────────────────────────────────────────────── */

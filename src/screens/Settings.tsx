@@ -1,11 +1,12 @@
 import { useState } from 'preact/hooks';
-import type { Goals } from '../lib/types';
+import type { AiProvider, GeminiModel, Goals } from '../lib/types';
 import { backupJson, clearAll, DEFAULT_GOALS, getData, parseData, replaceData, updateSettings, useData } from '../lib/store';
 import { fmtKcal, kcalFromMacros, parseNumber } from '../lib/nutrition';
 import { todayKey } from '../lib/dates';
 import { goBack } from '../lib/router';
 import { showToast } from '../lib/toast';
 import { ChevronLeft } from '../components/Icons';
+import { GEMINI_MODELS } from '../lib/ai';
 
 const GOAL_FIELDS = [
   { key: 'p', label: 'Protein', dot: 'p' },
@@ -44,8 +45,6 @@ export function Settings() {
     c: String(goals.c),
     f: String(goals.f),
   });
-  const [key, setKey] = useState(data.settings.apiKey);
-  const [showKey, setShowKey] = useState(false);
 
   const setGoal = (field: keyof Goals, value: string) => {
     const clean = value.replace(/[^\d]/g, '').slice(0, 5);
@@ -62,7 +61,9 @@ export function Settings() {
       const next = parseData(JSON.parse(await file.text()));
       const count = next.entries.length;
       if (!confirm(`Replace everything on this device with the backup (${count} entries)?`)) return;
-      replaceData({ ...next, settings: { ...next.settings, apiKey: next.settings.apiKey || getData().settings.apiKey } });
+      // Backups carry no API keys; keep the ones already on this device.
+      const current = getData().settings;
+      replaceData({ ...next, settings: { ...next.settings, apiKey: current.apiKey, geminiKey: current.geminiKey } });
       const g = next.settings.goals;
       setDraft({ kcal: String(g.kcal), p: String(g.p), c: String(g.c), f: String(g.f) });
       showToast(`Restored ${count} entries`);
@@ -160,50 +161,7 @@ export function Settings() {
         </button>
       </section>
 
-      <section class="card stack-12" aria-labelledby="photo-title">
-        <h2 id="photo-title" class="section-title">
-          Photo estimates
-        </h2>
-        <p class="body-text">
-          Photo estimates use Claude by Anthropic. Add your own API key from{' '}
-          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">
-            console.anthropic.com
-          </a>
-          . The key is stored only on this device, and photos go straight from your phone to Anthropic. Each estimate is
-          billed to your Anthropic account.
-        </p>
-        <form
-          class="field"
-          onSubmit={(e) => {
-            e.preventDefault();
-            updateSettings({ apiKey: key.trim() });
-            showToast(key.trim() ? 'API key saved' : 'API key removed');
-          }}
-        >
-          <label for="api-key" class="field-label">
-            Anthropic API key
-          </label>
-          <div class="key-row">
-            <input
-              id="api-key"
-              class="input"
-              type={showKey ? 'text' : 'password'}
-              autoComplete="off"
-              autoCapitalize="off"
-              spellcheck={false}
-              placeholder="sk-ant-…"
-              value={key}
-              onInput={(e) => setKey((e.target as HTMLInputElement).value)}
-            />
-            <button type="button" class="btn-secondary small-btn" onClick={() => setShowKey(!showKey)}>
-              {showKey ? 'Hide' : 'Show'}
-            </button>
-          </div>
-          <button type="submit" class="btn-primary" disabled={key.trim() === data.settings.apiKey}>
-            Save key
-          </button>
-        </form>
-      </section>
+      <AiSettings />
 
       <section class="card stack-12" aria-labelledby="data-title">
         <h2 id="data-title" class="section-title">
@@ -212,7 +170,7 @@ export function Settings() {
         <p class="body-text">
           Everything you log is saved on this device only ({data.entries.length}{' '}
           {data.entries.length === 1 ? 'entry' : 'entries'}), with no account or cloud copy. Export a backup now and then
-          and keep it in Files or iCloud Drive so you can restore it on a new phone. Backups don't include your API key.
+          and keep it in Files or iCloud Drive so you can restore it on a new phone. Backups don't include your API keys.
         </p>
         <div class="button-pair">
           <button type="button" class="btn-secondary" onClick={() => exportBackup()}>
@@ -254,11 +212,150 @@ export function Settings() {
         <p class="body-text">
           In Chrome on iPhone, tap the <strong>Share</strong> button in the address bar, then{' '}
           <strong>Add to Home Screen</strong>. The tracker then opens full screen from its own icon and works offline for
-          everything except barcode lookups, online search and photo estimates. Always open it from that icon: the home
+          everything except barcode lookups, online search and AI estimates. Always open it from that icon: the home
           screen app keeps its own data, separate from Chrome tabs. Removing the icon can delete that data, so export a
           backup first.
         </p>
       </section>
     </main>
+  );
+}
+
+function KeyField({
+  id,
+  label,
+  placeholder,
+  saved,
+  onSave,
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  saved: string;
+  onSave: (key: string) => void;
+}) {
+  const [key, setKey] = useState(saved);
+  const [show, setShow] = useState(false);
+  return (
+    <form
+      class="field"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave(key.trim());
+        showToast(key.trim() ? 'Key saved' : 'Key removed');
+      }}
+    >
+      <label for={id} class="field-label">
+        {label}
+      </label>
+      <div class="key-row">
+        <input
+          id={id}
+          class="input"
+          type={show ? 'text' : 'password'}
+          autoComplete="off"
+          autoCapitalize="off"
+          spellcheck={false}
+          placeholder={placeholder}
+          value={key}
+          onInput={(e) => setKey((e.target as HTMLInputElement).value)}
+        />
+        <button type="button" class="btn-secondary small-btn" onClick={() => setShow(!show)}>
+          {show ? 'Hide' : 'Show'}
+        </button>
+      </div>
+      <button type="submit" class="btn-primary" disabled={key.trim() === saved}>
+        Save key
+      </button>
+    </form>
+  );
+}
+
+function AiSettings() {
+  const { settings } = useData();
+  const provider = settings.aiProvider;
+  const choose = (p: AiProvider) => updateSettings({ aiProvider: p });
+
+  return (
+    <section class="card stack-12" aria-labelledby="ai-title">
+      <h2 id="ai-title" class="section-title">
+        AI estimates
+      </h2>
+      <p class="body-text">
+        AI turns a meal photo or a plain-text description into items with portions and calories. Describing food also works
+        without AI by matching your words to the food list.
+      </p>
+
+      <div role="group" aria-label="AI provider" class="segmented two">
+        <button type="button" aria-pressed={provider === 'gemini'} onClick={() => choose('gemini')}>
+          Gemini · free
+        </button>
+        <button type="button" aria-pressed={provider === 'claude'} onClick={() => choose('claude')}>
+          Claude · paid
+        </button>
+      </div>
+
+      {provider === 'gemini' ? (
+        <>
+          <ol class="steps">
+            <li>
+              Open{' '}
+              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">
+                aistudio.google.com/apikey
+              </a>{' '}
+              and sign in with a Google account.
+            </li>
+            <li>
+              Tap <strong>Create API key</strong> and copy it. No card is needed.
+            </li>
+            <li>Paste it below and save.</li>
+          </ol>
+          <KeyField
+            id="gemini-key"
+            label="Gemini API key"
+            placeholder="AIza…"
+            saved={settings.geminiKey}
+            onSave={(geminiKey) => updateSettings({ geminiKey })}
+          />
+          <div class="field">
+            <span class="field-label">Model</span>
+            <div class="chips">
+              {GEMINI_MODELS.map((m) => (
+                <button
+                  type="button"
+                  class="pill"
+                  aria-pressed={settings.geminiModel === m.id}
+                  onClick={() => updateSettings({ geminiModel: m.id as GeminiModel })}
+                >
+                  {m.label} · {m.hint.toLowerCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p class="field-hint">
+            The free tier has a daily limit on requests. On the free tier Google may use what you send (photos and
+            descriptions) to improve its products, so don't include anything private.
+          </p>
+        </>
+      ) : (
+        <>
+          <p class="body-text">
+            Claude needs an API key from{' '}
+            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">
+              console.anthropic.com
+            </a>{' '}
+            with prepaid credit; each estimate is billed to your Anthropic account.
+          </p>
+          <KeyField
+            id="api-key"
+            label="Anthropic API key"
+            placeholder="sk-ant-…"
+            saved={settings.apiKey}
+            onSave={(apiKey) => updateSettings({ apiKey })}
+          />
+        </>
+      )}
+      <p class="field-hint">Keys are stored only on this device and are left out of backups.</p>
+    </section>
   );
 }

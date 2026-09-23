@@ -33,7 +33,7 @@ export interface Food {
   barcode?: string;
 }
 
-export type EntrySource = 'food' | 'barcode' | 'photo' | 'quick' | 'copy';
+export type EntrySource = 'food' | 'barcode' | 'photo' | 'text' | 'quick' | 'copy';
 
 export interface Entry {
   id: string;
@@ -57,10 +57,19 @@ export interface Entry {
 
 export interface Goals extends Macros {}
 
+export type AiProvider = 'gemini' | 'claude';
+
+export type GeminiModel = 'gemini-flash-lite-latest' | 'gemini-flash-latest';
+
 export interface Settings {
   goals: Goals;
-  /** Anthropic API key used for photo estimates. Stored only on this device. */
+  /** Which AI estimates photos and descriptions. */
+  aiProvider: AiProvider;
+  /** Anthropic API key (Claude). Stored only on this device. */
   apiKey: string;
+  /** Google AI Studio key (Gemini, has a free allowance). Stored only on this device. */
+  geminiKey: string;
+  geminiModel: GeminiModel;
 }
 
 export interface AppData {

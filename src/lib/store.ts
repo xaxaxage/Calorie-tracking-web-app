@@ -13,7 +13,7 @@ export function emptyData(): AppData {
     version: 1,
     entries: [],
     favorites: [],
-    settings: { goals: { ...DEFAULT_GOALS }, apiKey: '' },
+    settings: { goals: { ...DEFAULT_GOALS }, aiProvider: 'gemini', apiKey: '', geminiKey: '', geminiModel: 'gemini-flash-lite-latest' },
   };
 }
 
@@ -53,7 +53,7 @@ function cleanEntry(raw: any): Entry | undefined {
     p: Math.max(0, num(raw.p)),
     c: Math.max(0, num(raw.c)),
     f: Math.max(0, num(raw.f)),
-    source: ['food', 'barcode', 'photo', 'quick', 'copy'].includes(raw.source) ? raw.source : 'quick',
+    source: ['food', 'barcode', 'photo', 'text', 'quick', 'copy'].includes(raw.source) ? raw.source : 'quick',
     createdAt: num(raw.createdAt, Date.now()),
   };
 }
@@ -65,6 +65,8 @@ export function parseData(raw: unknown): AppData {
   }
   const r = raw as any;
   const goals = r.settings?.goals ?? {};
+  const str = (v: unknown) => (typeof v === 'string' ? v : '');
+  const apiKey = str(r.settings?.apiKey);
   return {
     version: 1,
     entries: Array.isArray(r.entries) ? r.entries.map(cleanEntry).filter(Boolean) : [],
@@ -76,7 +78,15 @@ export function parseData(raw: unknown): AppData {
         c: num(goals.c, DEFAULT_GOALS.c),
         f: num(goals.f, DEFAULT_GOALS.f),
       },
-      apiKey: typeof r.settings?.apiKey === 'string' ? r.settings.apiKey : '',
+      // Older data only had a Claude key; keep using Claude for people who set one up.
+      aiProvider: r.settings?.aiProvider === 'claude' || r.settings?.aiProvider === 'gemini'
+        ? r.settings.aiProvider
+        : apiKey
+          ? 'claude'
+          : 'gemini',
+      apiKey,
+      geminiKey: str(r.settings?.geminiKey),
+      geminiModel: r.settings?.geminiModel === 'gemini-flash-latest' ? 'gemini-flash-latest' : 'gemini-flash-lite-latest',
     },
   };
 }
@@ -196,9 +206,9 @@ export function updateSettings(patch: Partial<Settings>) {
   commit({ ...data, settings: { ...data.settings, ...patch } });
 }
 
-/** Backup file contents. The API key is left out so a shared or synced backup can't leak it. */
+/** Backup file contents. API keys are left out so a shared or synced backup can't leak them. */
 export function backupJson(source: AppData = data): string {
-  const { apiKey: _omit, ...settings } = source.settings;
+  const { apiKey: _claude, geminiKey: _gemini, ...settings } = source.settings;
   return JSON.stringify({ ...source, settings }, null, 2);
 }
 

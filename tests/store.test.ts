@@ -69,12 +69,22 @@ describe('store', () => {
     expect(getData().settings.goals.kcal).toBe(2300);
   });
 
-  it('leaves the API key out of backups, and a restore keeps working without it', () => {
+  it('defaults to the free Gemini provider, and keeps Claude for people who already set a key', () => {
+    expect(getData().settings.aiProvider).toBe('gemini');
+    expect(getData().settings.geminiModel).toBe('gemini-flash-lite-latest');
+    const old = parseData({ version: 1, entries: [], favorites: [], settings: { goals: {}, apiKey: 'sk-ant-x' } });
+    expect(old.settings.aiProvider).toBe('claude');
+    expect(old.settings.geminiKey).toBe('');
+  });
+
+  it('leaves API keys out of backups, and a restore keeps working without them', () => {
     addEntry({ date: '2026-09-23', meal: 'lunch', name: 'Soup', kcal: 200, p: 5, c: 20, f: 8, source: 'quick' });
-    const withKey = { ...getData(), settings: { ...getData().settings, apiKey: 'sk-ant-secret' } };
+    const withKey = { ...getData(), settings: { ...getData().settings, apiKey: 'sk-ant-secret', geminiKey: 'AIza-secret' } };
     const json = backupJson(withKey);
     expect(json).not.toContain('sk-ant-secret');
+    expect(json).not.toContain('AIza-secret');
     expect(json).not.toContain('apiKey');
+    expect(json).not.toContain('geminiKey');
     const restored = parseData(JSON.parse(json));
     expect(restored.entries).toHaveLength(1);
     expect(restored.settings.apiKey).toBe('');

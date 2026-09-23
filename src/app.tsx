@@ -14,6 +14,7 @@ import { CopyMeal } from './screens/CopyMeal';
 import { MealDetail } from './screens/MealDetail';
 import { Scan } from './screens/Scan';
 import { Photo } from './screens/Photo';
+import { Describe } from './screens/Describe';
 import { Settings } from './screens/Settings';
 import { ChevronLeft } from './components/Icons';
 
@@ -112,6 +113,9 @@ export function App() {
       break;
     case 'photo':
       screen = <Photo meal={meal} date={date} />;
+      break;
+    case 'describe':
+      screen = <Describe meal={meal} date={date} initialText={query.get('text') ?? ''} />;
       break;
     case 'settings':
       screen = <Settings />;

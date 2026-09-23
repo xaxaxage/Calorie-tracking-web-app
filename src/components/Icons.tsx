@@ -148,3 +148,10 @@ export const Globe = (p: IconProps) => (
     <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
   </Svg>
 );
+
+export const Chat = (p: IconProps) => (
+  <Svg size={22} {...p}>
+    <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
+    <path d="M7.5 9.5h9M7.5 12.5h6" />
+  </Svg>
+);

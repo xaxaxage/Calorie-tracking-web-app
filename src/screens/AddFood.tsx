@@ -14,7 +14,7 @@ import { MEAL_LABEL } from '../lib/meals';
 import { finishFlow, href, navigate } from '../lib/router';
 import { LookupError, searchProducts } from '../lib/openfoodfacts';
 import { MealPicker } from '../components/Common';
-import { Barcode, Bolt, Camera, Check, Close, Copy, Plus, Search } from '../components/Icons';
+import { Barcode, Bolt, Camera, Chat, Check, ChevronRight, Close, Copy, Plus, Search } from '../components/Icons';
 
 type Tab = 'recent' | 'favorites';
 
@@ -265,12 +265,33 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
               </div>
             </>
           )}
+          <a class="describe-row" href={`#${href('/describe', { meal, date, text: q })}`}>
+            <span class="tile-icon green">
+              <Chat />
+            </span>
+            <span class="describe-copy">
+              <strong>Describe “{q}”</strong>
+              <span>Log it from a plain-text description</span>
+            </span>
+            <ChevronRight size={18} />
+          </a>
           <a class="quick-hint" href={tool('/quick')}>
             Can't find it? <strong>Quick add calories</strong>
           </a>
         </section>
       ) : (
         <>
+          <a class="describe-row" href={tool('/describe')}>
+            <span class="tile-icon green">
+              <Chat />
+            </span>
+            <span class="describe-copy">
+              <strong>Describe what you ate</strong>
+              <span>“2 eggs, toast with butter and a latte”</span>
+            </span>
+            <ChevronRight size={18} />
+          </a>
+
           <div class="tiles">
             <a href={tool('/scan')} class="tile">
               <span class="tile-icon teal">
