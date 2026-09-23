@@ -22,7 +22,15 @@ export interface PreparedImage {
 export type EstimateInput = { kind: 'photo'; image: PreparedImage } | { kind: 'text'; text: string };
 
 /** An error whose message can be shown to the user as is. */
-export class AiError extends Error {}
+export class AiError extends Error {
+  constructor(
+    message: string,
+    /** A one-tap fix the screen can offer, e.g. switching to the free provider. */
+    readonly fix?: 'use-gemini',
+  ) {
+    super(message);
+  }
+}
 
 const itemProperties = {
   name: { type: 'string', description: 'Short food name with preparation, e.g. "White rice, cooked".' },

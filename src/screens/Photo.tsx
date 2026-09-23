@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { MealId } from '../lib/types';
 import type { EstimatedItem, PreparedImage } from '../lib/ai';
 import { aiReady, estimate, prepareImage, providerName } from '../lib/ai';
-import { useData } from '../lib/store';
+import { getData, useData } from '../lib/store';
+import { AiError } from '../lib/ai/shared';
+import { ProviderLine, UseGeminiButton } from '../components/AiProvider';
 import { goBack, href } from '../lib/router';
 import { EstimateReview } from '../components/EstimateReview';
 import { Camera, ChevronLeft } from '../components/Icons';
@@ -11,7 +13,7 @@ type Phase =
   | { state: 'pick'; message?: string }
   | { state: 'analyzing'; image: PreparedImage; progress?: string }
   | { state: 'done'; image: PreparedImage; items: EstimatedItem[]; source: string; id: number }
-  | { state: 'error'; image: PreparedImage; message: string };
+  | { state: 'error'; image: PreparedImage; message: string; fix?: 'use-gemini' };
 
 let runId = 0;
 
@@ -32,7 +34,9 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
     abortRef.current = controller;
     setPhase({ state: 'analyzing', image });
     try {
-      const { items, source } = await estimate(settings, { kind: 'photo', image }, controller.signal, (progress) => {
+      // Read settings now, not from the render: the provider may have just been switched.
+      const current = getData().settings;
+      const { items, source } = await estimate(current, { kind: 'photo', image }, controller.signal, (progress) => {
         if (!controller.signal.aborted) setPhase({ state: 'analyzing', image, progress });
       });
       if (controller.signal.aborted) return;
@@ -40,7 +44,12 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
     } catch (err) {
       if (controller.signal.aborted) return;
       console.error(err);
-      setPhase({ state: 'error', image, message: (err as Error).message || 'Something went wrong. Try again.' });
+      setPhase({
+        state: 'error',
+        image,
+        message: (err as Error).message || 'Something went wrong. Try again.',
+        fix: err instanceof AiError ? err.fix : undefined,
+      });
     }
   };
 
@@ -146,6 +155,7 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
                 Take photo
               </button>
             </div>
+            <ProviderLine />
           </>
         ))}
 
@@ -156,10 +166,15 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
             <button type="button" class="btn-secondary" onClick={retake}>
               Retake
             </button>
-            <button type="button" class="btn-primary" onClick={() => analyze(phase.image)}>
-              Try again
-            </button>
+            {phase.fix === 'use-gemini' ? (
+              <UseGeminiButton onSwitched={() => analyze(phase.image)} />
+            ) : (
+              <button type="button" class="btn-primary" onClick={() => analyze(phase.image)}>
+                Try again
+              </button>
+            )}
           </div>
+          <ProviderLine />
         </>
       )}
 

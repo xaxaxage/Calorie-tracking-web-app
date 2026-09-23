@@ -3,14 +3,16 @@ import type { Food, MealId } from '../lib/types';
 import { aiReady, estimate, providerName } from '../lib/ai';
 import { FOODS } from '../lib/foods';
 import { matchDescription } from '../lib/textmatch';
-import { recentFoods, useData } from '../lib/store';
+import { getData, recentFoods, useData } from '../lib/store';
+import { AiError } from '../lib/ai/shared';
+import { ProviderLine, UseGeminiButton } from '../components/AiProvider';
 import { goBack, href, navigate } from '../lib/router';
 import { EstimateReview, type ReviewItem } from '../components/EstimateReview';
 import { MealPicker } from '../components/Common';
 import { ChevronLeft } from '../components/Icons';
 
 type Phase =
-  | { state: 'edit'; message?: string }
+  | { state: 'edit'; message?: string; fix?: 'use-gemini' }
   | { state: 'loading'; progress?: string }
   | { state: 'done'; via: 'ai' | 'list'; source: string; items: ReviewItem[]; unmatched: string[]; id: number };
 
@@ -71,8 +73,9 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
     abortRef.current = controller;
     setPhase({ state: 'loading' });
     try {
+      // Read settings now, not from the render: the provider may have just been switched.
       const { items, source } = await estimate(
-        settings,
+        getData().settings,
         { kind: 'text', text: trimmed.slice(0, 2000) },
         controller.signal,
         (progress) => !controller.signal.aborted && setPhase({ state: 'loading', progress }),
@@ -93,7 +96,11 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
     } catch (err) {
       if (controller.signal.aborted) return;
       console.error(err);
-      setPhase({ state: 'edit', message: (err as Error).message || 'Something went wrong. Try again.' });
+      setPhase({
+        state: 'edit',
+        message: (err as Error).message || 'Something went wrong. Try again.',
+        fix: err instanceof AiError ? err.fix : undefined,
+      });
     }
   };
 
@@ -163,6 +170,7 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
           </div>
 
           {phase.state === 'edit' && phase.message && <div class="notice plain">{phase.message}</div>}
+          {phase.state === 'edit' && phase.fix === 'use-gemini' && <UseGeminiButton onSwitched={askAi} />}
 
           {phase.state === 'loading' ? (
             <div class="sheet-status">
@@ -177,6 +185,7 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
               <button type="button" class="btn-secondary" disabled={!trimmed} onClick={matchFromList}>
                 Match from food list (offline)
               </button>
+              <ProviderLine />
             </div>
           ) : (
             <div class="stack-10">

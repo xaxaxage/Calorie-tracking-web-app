@@ -746,6 +746,16 @@
   font-size: 13px;
 }
 
+.provider-line {
+  padding: 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+.provider-line a {
+  font-weight: 700;
+}
+
 /* ── Barcode scanner ──────────────────────────────────────────────────── */
 .scanner {
   position: fixed;

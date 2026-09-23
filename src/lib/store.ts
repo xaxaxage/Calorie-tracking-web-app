@@ -124,11 +124,14 @@ function load(): AppData {
 }
 
 let data: AppData = load();
+/** Bumped on every change, so a component can tell it missed one. */
+let version = 0;
 let saveError: string | null = null;
 const listeners = new Set<() => void>();
 
 function commit(next: AppData) {
   data = next;
+  version++;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     saveError = null;
@@ -155,6 +158,7 @@ export function subscribe(listener: () => void): () => void {
 /** Re-read storage, e.g. after another tab changed it. */
 export function reload() {
   data = load();
+  version++;
   listeners.forEach((l) => l());
 }
 
@@ -166,7 +170,14 @@ if (typeof window !== 'undefined') {
 
 export function useData(): AppData {
   const [, setTick] = useState(0);
-  useEffect(() => subscribe(() => setTick((t) => t + 1)), []);
+  const seen = version;
+  useEffect(() => {
+    const unsubscribe = subscribe(() => setTick((t) => t + 1));
+    // Effects run a moment after render; catch a change made in between.
+    if (version !== seen) setTick((t) => t + 1);
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return data;
 }
 

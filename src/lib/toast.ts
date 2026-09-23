@@ -39,9 +39,12 @@ export function dismissToast() {
 
 export function useToast(): Toast | null {
   const [, setTick] = useState(0);
+  const shown = current;
   useEffect(() => {
     const l = () => setTick((t) => t + 1);
     listeners.add(l);
+    // Catch a toast shown between render and subscribing.
+    if (current !== shown) l();
     return () => {
       listeners.delete(l);
     };

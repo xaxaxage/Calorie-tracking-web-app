@@ -18,6 +18,12 @@ import {
 
 export const CLAUDE_MODEL = 'claude-opus-5';
 
+/** Anthropic's own explanation from the error body, without the status code and raw JSON. */
+function apiMessage(err: InstanceType<typeof Anthropic.APIError>): string {
+  const body = err.error as { error?: { message?: unknown } } | undefined;
+  return typeof body?.error?.message === 'string' ? body.error.message : err.message;
+}
+
 export async function estimateWithClaude(
   apiKey: string,
   input: EstimateInput,
@@ -57,8 +63,18 @@ export async function estimateWithClaude(
     );
   } catch (err) {
     if (err instanceof Anthropic.APIUserAbortError) throw err;
+    // No credit shows up as a 402 billing_error or as a 400 whose message says so.
+    if (
+      err instanceof Anthropic.APIError &&
+      (err.type === 'billing_error' || err.status === 402 || /credit balance|purchase credits/i.test(apiMessage(err)))
+    ) {
+      throw new AiError(
+        "Your Anthropic account has no credit, so Claude can't be used. Gemini is free — switch to it instead.",
+        'use-gemini',
+      );
+    }
     if (err instanceof Anthropic.AuthenticationError) {
-      throw new AiError('Your Anthropic API key was not accepted. Check it in Settings.');
+      throw new AiError('Your Anthropic API key was not accepted. Check it in Settings, or switch to free Gemini.', 'use-gemini');
     }
     if (err instanceof Anthropic.PermissionDeniedError) {
       throw new AiError('Your Anthropic API key does not have access to this model. Check your Anthropic account.');
@@ -67,7 +83,7 @@ export async function estimateWithClaude(
       throw new AiError('Too many requests right now. Wait a minute and try again.');
     }
     if (err instanceof Anthropic.BadRequestError) {
-      throw new AiError(`Claude could not process this: ${err.message}`);
+      throw new AiError(`Claude could not process this: ${apiMessage(err)}`);
     }
     if (err instanceof Anthropic.APIConnectionError) {
       throw new AiError('No connection to Anthropic. Check your internet and try again.');

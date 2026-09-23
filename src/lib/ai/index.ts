@@ -15,6 +15,11 @@ export function providerName(settings: Settings): string {
   return settings.aiProvider === 'claude' ? 'Claude' : 'Gemini';
 }
 
+/** "Claude (paid)" or "Gemini · Flash-Lite (newest)", for showing which AI is in use. */
+export function providerSummary(settings: Settings): string {
+  return settings.aiProvider === 'claude' ? 'Claude (paid)' : `Gemini · ${geminiLabel(settings, settings.geminiModel)}`;
+}
+
 /** True when the chosen AI provider has a key. */
 export function aiReady(settings: Settings): boolean {
   const key = settings.aiProvider === 'claude' ? settings.apiKey : settings.geminiKey;

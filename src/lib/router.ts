@@ -8,6 +8,8 @@ import { useEffect, useState } from 'preact/hooks';
  */
 
 export interface Route {
+  /** The hash as parsed, to tell whether anything changed. */
+  raw: string;
   path: string;
   segments: string[];
   query: URLSearchParams;
@@ -21,6 +23,7 @@ export function parseHash(hash: string): Route {
   const [pathPart, queryPart = ''] = raw.split('?');
   const path = pathPart.startsWith('/') ? pathPart : `/${pathPart}`;
   return {
+    raw,
     path,
     segments: path.split('/').filter(Boolean).map(decodeURIComponent),
     query: new URLSearchParams(queryPart),
@@ -64,8 +67,13 @@ export function currentRoute(): Route {
 export function useRoute(): Route {
   const [route, setRoute] = useState(currentRoute);
   useEffect(() => {
-    const update = () => setRoute(currentRoute());
+    const update = () => {
+      const next = currentRoute();
+      setRoute((prev) => (prev.raw === next.raw ? prev : next));
+    };
     listeners.add(update);
+    // Effects run a moment after the first render; catch a URL change made in between.
+    update();
     return () => {
       listeners.delete(update);
     };
