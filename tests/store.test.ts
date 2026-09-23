@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   addEntry,
+  backupJson,
   clearAll,
   deleteEntry,
   findFood,
@@ -66,6 +67,17 @@ describe('store', () => {
     clearAll();
     expect(getData().entries).toHaveLength(0);
     expect(getData().settings.goals.kcal).toBe(2300);
+  });
+
+  it('leaves the API key out of backups, and a restore keeps working without it', () => {
+    addEntry({ date: '2026-09-23', meal: 'lunch', name: 'Soup', kcal: 200, p: 5, c: 20, f: 8, source: 'quick' });
+    const withKey = { ...getData(), settings: { ...getData().settings, apiKey: 'sk-ant-secret' } };
+    const json = backupJson(withKey);
+    expect(json).not.toContain('sk-ant-secret');
+    expect(json).not.toContain('apiKey');
+    const restored = parseData(JSON.parse(json));
+    expect(restored.entries).toHaveLength(1);
+    expect(restored.settings.apiKey).toBe('');
   });
 
   it('validates backups and drops malformed entries', () => {

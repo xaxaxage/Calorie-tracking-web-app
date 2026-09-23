@@ -46,9 +46,28 @@ Anthropic's recommended fallback model.
 
 ## Your data
 
-Everything is stored in the browser's local storage on your phone — there is no server and no account.
-Use **Settings → Export backup** now and then; **Import backup** restores it (for example on a new phone).
-Clearing Chrome's site data for the app deletes your log.
+There is no server and no account. Everything lives in the browser storage (`localStorage`) of the app on
+your phone, as one JSON record under the key `calorie-tracker:v1`:
+
+- **entries** – one per logged item: day, meal, name, amount, calories and macros, plus a copy of the food's
+  per-100 g values so the portion can be edited later
+- **favorites** – foods you starred
+- **settings** – daily goals and your Anthropic API key
+
+Photos are not kept: they are only sent to Anthropic while estimating. Online search and barcode lookups send
+just the search text or barcode number to Open Food Facts.
+
+Things to know when this is your main tracker:
+
+- **Use the home screen icon, not a Chrome tab.** On iPhone the home screen app has its own storage, separate
+  from Chrome, so entries made in one don't show up in the other.
+- **Removing the icon can delete its data**, as can clearing website data. Export a backup first.
+- **Back up regularly:** Settings → Export backup opens the share sheet — save the file to Files / iCloud Drive.
+  Settings → Import backup restores it (for example on a new phone). Backups leave out your API key.
+- **One device only:** there is no sync between devices.
+- **Capacity:** a logged food takes about 0.4 KB and browsers allow a few MB per site, which is on the order of
+  a couple of years of detailed logging. If saving ever fails, the app shows a red banner.
+- **Updates** arrive automatically: after a new version is deployed, it loads on the next launch.
 
 ## Development
 

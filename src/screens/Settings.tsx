@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import type { Goals } from '../lib/types';
-import { clearAll, DEFAULT_GOALS, getData, parseData, replaceData, updateSettings, useData } from '../lib/store';
+import { backupJson, clearAll, DEFAULT_GOALS, getData, parseData, replaceData, updateSettings, useData } from '../lib/store';
 import { fmtKcal, kcalFromMacros, parseNumber } from '../lib/nutrition';
 import { todayKey } from '../lib/dates';
 import { goBack } from '../lib/router';
@@ -14,8 +14,7 @@ const GOAL_FIELDS = [
 ] as const;
 
 async function exportBackup() {
-  const data = getData();
-  const json = JSON.stringify(data, null, 2);
+  const json = backupJson();
   const name = `calorie-tracker-backup-${todayKey()}.json`;
   const file = new File([json], name, { type: 'application/json' });
   try {
@@ -212,8 +211,8 @@ export function Settings() {
         </h2>
         <p class="body-text">
           Everything you log is saved on this device only ({data.entries.length}{' '}
-          {data.entries.length === 1 ? 'entry' : 'entries'}). Export a backup now and then so you can restore it on a new
-          phone.
+          {data.entries.length === 1 ? 'entry' : 'entries'}), with no account or cloud copy. Export a backup now and then
+          and keep it in Files or iCloud Drive so you can restore it on a new phone. Backups don't include your API key.
         </p>
         <div class="button-pair">
           <button type="button" class="btn-secondary" onClick={() => exportBackup()}>
@@ -255,7 +254,9 @@ export function Settings() {
         <p class="body-text">
           In Chrome on iPhone, tap the <strong>Share</strong> button in the address bar, then{' '}
           <strong>Add to Home Screen</strong>. The tracker then opens full screen from its own icon and works offline for
-          everything except barcode lookups, online search and photo estimates.
+          everything except barcode lookups, online search and photo estimates. Always open it from that icon: the home
+          screen app keeps its own data, separate from Chrome tabs. Removing the icon can delete that data, so export a
+          backup first.
         </p>
       </section>
     </main>

@@ -196,6 +196,12 @@ export function updateSettings(patch: Partial<Settings>) {
   commit({ ...data, settings: { ...data.settings, ...patch } });
 }
 
+/** Backup file contents. The API key is left out so a shared or synced backup can't leak it. */
+export function backupJson(source: AppData = data): string {
+  const { apiKey: _omit, ...settings } = source.settings;
+  return JSON.stringify({ ...source, settings }, null, 2);
+}
+
 export function replaceData(next: AppData) {
   commit(next);
 }
