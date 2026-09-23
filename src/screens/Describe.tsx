@@ -11,8 +11,8 @@ import { ChevronLeft } from '../components/Icons';
 
 type Phase =
   | { state: 'edit'; message?: string }
-  | { state: 'loading' }
-  | { state: 'done'; via: 'ai' | 'list'; items: ReviewItem[]; unmatched: string[]; id: number };
+  | { state: 'loading'; progress?: string }
+  | { state: 'done'; via: 'ai' | 'list'; source: string; items: ReviewItem[]; unmatched: string[]; id: number };
 
 let runId = 0;
 
@@ -58,6 +58,7 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
     setPhase({
       state: 'done',
       via: 'list',
+      source: 'the food list',
       id: ++runId,
       unmatched,
       items: matches.map((m) => ({ name: m.food.name, amount: m.amount, per100: m.food.per100, food: m.food })),
@@ -70,7 +71,12 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
     abortRef.current = controller;
     setPhase({ state: 'loading' });
     try {
-      const items = await estimate(settings, { kind: 'text', text: trimmed.slice(0, 2000) }, controller.signal);
+      const { items, source } = await estimate(
+        settings,
+        { kind: 'text', text: trimmed.slice(0, 2000) },
+        controller.signal,
+        (progress) => !controller.signal.aborted && setPhase({ state: 'loading', progress }),
+      );
       if (controller.signal.aborted) return;
       if (items.length === 0) {
         setPhase({ state: 'edit', message: "That didn't sound like food or drink. Try describing what you ate and how much." });
@@ -79,6 +85,7 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
       setPhase({
         state: 'done',
         via: 'ai',
+        source,
         id: ++runId,
         unmatched: [],
         items: items.map((it) => ({ name: it.name, amount: it.grams, per100: it.per100 })),
@@ -126,7 +133,7 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
             title={`${done.items.length} ${done.items.length === 1 ? 'item' : 'items'}`}
             note={
               done.via === 'ai'
-                ? `Estimated by ${providerName(settings)} — check the amounts.`
+                ? `Estimated by ${done.source} — check the amounts.`
                 : 'Matched from the food list, free and offline — check the amounts.'
             }
             secondary={{ label: 'Edit', onClick: () => setPhase({ state: 'edit' }) }}
@@ -160,7 +167,7 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
           {phase.state === 'loading' ? (
             <div class="sheet-status">
               <span class="spinner" />
-              <span>{providerName(settings)} is working it out…</span>
+              <span>{phase.progress ?? `${providerName(settings)} is working it out…`}</span>
             </div>
           ) : ready ? (
             <div class="stack-10">

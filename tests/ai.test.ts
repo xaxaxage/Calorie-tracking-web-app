@@ -32,6 +32,7 @@ describe('AI output validation', () => {
     expect(() => parseJsonReply('')).toThrow(AiError);
     expect(() => parseJsonReply('{"items": [')).toThrow(AiError);
     expect(parseJsonReply('```json\n{"items": []}\n```')).toEqual({ items: [] });
+    expect(parseJsonReply('Here is the estimate:\n{"items": []}\nEnjoy!')).toEqual({ items: [] });
   });
 
   it('keeps the description separate from the instructions', () => {

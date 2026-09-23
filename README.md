@@ -45,9 +45,18 @@ The app can use either AI; pick one in **Settings → AI estimates**:
   2. Tap **Create API key** and copy it (no card needed).
   3. In the app: **Settings → AI estimates → Gemini** → paste → **Save key**.
 
-  The app uses the `gemini-flash-lite-latest` model by default (largest free allowance); switch to
-  `gemini-flash-latest` for better accuracy with fewer free requests per day. On the free tier Google may use
-  what you send to improve its products. Free-tier availability depends on your country.
+  **Choosing a model:** the default is `gemini-flash-lite-latest` (always Google's newest Flash-Lite, largest free
+  allowance); `gemini-flash-latest` is more accurate with fewer free requests. After you save your key, the
+  model picker also lists every model that key can use (Gemini and Gemma), and **Other** takes any model ID.
+  Free keys can use Flash and Flash-Lite models, each with its own daily allowance; Pro models need billing.
+
+  **Busy or out of free uses:** with **Switch models automatically** on (the default), a model that answers
+  "overloaded" (503) is retried once, and a model that is busy, out of free uses (429) or unavailable hands over
+  to the next one: the newest Flash-Lite and Flash, then other Flash models on your key, then a Gemma model — up
+  to five in total. The screen shows which model is being tried and which one answered.
+
+  On the free tier Google may use what you send to improve its products. Free-tier availability depends on your
+  country.
 - **Claude (paid)** – needs an Anthropic API key with prepaid credit from
   [console.anthropic.com](https://console.anthropic.com/settings/keys). Uses `claude-opus-5` with structured JSON
   output and `fallbacks: "default"`.

@@ -72,6 +72,14 @@ describe('store', () => {
   it('defaults to the free Gemini provider, and keeps Claude for people who already set a key', () => {
     expect(getData().settings.aiProvider).toBe('gemini');
     expect(getData().settings.geminiModel).toBe('gemini-flash-lite-latest');
+    expect(getData().settings.geminiAutoSwitch).toBe(true);
+    const custom = parseData({
+      version: 1,
+      settings: { geminiModel: 'gemini-3.5-flash', geminiModels: [{ id: 'gemma-3-27b-it', label: 'Gemma' }, { id: '<bad>' }] },
+    });
+    expect(custom.settings.geminiModel).toBe('gemini-3.5-flash');
+    expect(custom.settings.geminiModels).toEqual([{ id: 'gemma-3-27b-it', label: 'Gemma' }]);
+    expect(parseData({ version: 1, settings: { geminiModel: 'drop table;' } }).settings.geminiModel).toBe('gemini-flash-lite-latest');
     const old = parseData({ version: 1, entries: [], favorites: [], settings: { goals: {}, apiKey: 'sk-ant-x' } });
     expect(old.settings.aiProvider).toBe('claude');
     expect(old.settings.geminiKey).toBe('');

@@ -9,8 +9,8 @@ import { Camera, ChevronLeft } from '../components/Icons';
 
 type Phase =
   | { state: 'pick'; message?: string }
-  | { state: 'analyzing'; image: PreparedImage }
-  | { state: 'done'; image: PreparedImage; items: EstimatedItem[]; id: number }
+  | { state: 'analyzing'; image: PreparedImage; progress?: string }
+  | { state: 'done'; image: PreparedImage; items: EstimatedItem[]; source: string; id: number }
   | { state: 'error'; image: PreparedImage; message: string };
 
 let runId = 0;
@@ -32,9 +32,11 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
     abortRef.current = controller;
     setPhase({ state: 'analyzing', image });
     try {
-      const items = await estimate(settings, { kind: 'photo', image }, controller.signal);
+      const { items, source } = await estimate(settings, { kind: 'photo', image }, controller.signal, (progress) => {
+        if (!controller.signal.aborted) setPhase({ state: 'analyzing', image, progress });
+      });
       if (controller.signal.aborted) return;
-      setPhase({ state: 'done', image, items, id: ++runId });
+      setPhase({ state: 'done', image, items, source, id: ++runId });
     } catch (err) {
       if (controller.signal.aborted) return;
       console.error(err);
@@ -103,7 +105,7 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
           {phase.state === 'analyzing' && (
             <div class="photo-overlay" role="status">
               <span class="spinner" />
-              Estimating portions…
+              {phase.progress ?? 'Estimating portions…'}
             </div>
           )}
         </div>
@@ -182,7 +184,7 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
           source="photo"
           numbered
           title={`${done.items.length} ${done.items.length === 1 ? 'item' : 'items'} found`}
-          note={`Estimated by ${providerName(settings)} — check the portions. Set 0 g to leave an item out.`}
+          note={`Estimated by ${done.source} — check the portions. Set 0 g to leave an item out.`}
           secondary={{ label: 'Retake', onClick: retake }}
         />
       )}

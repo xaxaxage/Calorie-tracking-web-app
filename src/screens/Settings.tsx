@@ -1,12 +1,22 @@
 import { useState } from 'preact/hooks';
-import type { AiProvider, GeminiModel, Goals } from '../lib/types';
-import { backupJson, clearAll, DEFAULT_GOALS, getData, parseData, replaceData, updateSettings, useData } from '../lib/store';
+import type { AiProvider, Goals } from '../lib/types';
+import {
+  backupJson,
+  clearAll,
+  DEFAULT_GOALS,
+  getData,
+  isModelId,
+  parseData,
+  replaceData,
+  updateSettings,
+  useData,
+} from '../lib/store';
 import { fmtKcal, kcalFromMacros, parseNumber } from '../lib/nutrition';
 import { todayKey } from '../lib/dates';
 import { goBack } from '../lib/router';
 import { showToast } from '../lib/toast';
 import { ChevronLeft } from '../components/Icons';
-import { GEMINI_MODELS } from '../lib/ai';
+import { GEMINI_SHORTCUTS, listGeminiModels } from '../lib/ai';
 
 const GOAL_FIELDS = [
   { key: 'p', label: 'Protein', dot: 'p' },
@@ -315,26 +325,20 @@ function AiSettings() {
             label="Gemini API key"
             placeholder="AIza…"
             saved={settings.geminiKey}
-            onSave={(geminiKey) => updateSettings({ geminiKey })}
+            onSave={(geminiKey) => {
+              updateSettings({ geminiKey });
+              // Fetch the models this key can use so they show up in the picker.
+              if (geminiKey)
+                listGeminiModels(geminiKey)
+                  .then((geminiModels) => updateSettings({ geminiModels }))
+                  .catch(() => undefined);
+            }}
           />
-          <div class="field">
-            <span class="field-label">Model</span>
-            <div class="chips">
-              {GEMINI_MODELS.map((m) => (
-                <button
-                  type="button"
-                  class="pill"
-                  aria-pressed={settings.geminiModel === m.id}
-                  onClick={() => updateSettings({ geminiModel: m.id as GeminiModel })}
-                >
-                  {m.label} · {m.hint.toLowerCase()}
-                </button>
-              ))}
-            </div>
-          </div>
+          <GeminiModelPicker />
           <p class="field-hint">
-            The free tier has a daily limit on requests. On the free tier Google may use what you send (photos and
-            descriptions) to improve its products, so don't include anything private.
+            Free keys can use Flash and Flash-Lite models, each with its own daily limit; Pro models need billing turned on
+            in Google AI Studio. On the free tier Google may use what you send (photos and descriptions) to improve its
+            products, so don't include anything private.
           </p>
         </>
       ) : (
@@ -357,5 +361,122 @@ function AiSettings() {
       )}
       <p class="field-hint">Keys are stored only on this device and are left out of backups.</p>
     </section>
+  );
+}
+
+const CUSTOM = '__custom';
+
+function GeminiModelPicker() {
+  const { settings } = useData();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [custom, setCustom] = useState(false);
+  const [customId, setCustomId] = useState('');
+  const current = settings.geminiModel;
+  const listed = settings.geminiModels;
+  const known = new Set([...GEMINI_SHORTCUTS.map((m) => m.id), ...listed.map((m) => m.id)]);
+
+  const load = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const geminiModels = await listGeminiModels(settings.geminiKey);
+      updateSettings({ geminiModels });
+      showToast(`Found ${geminiModels.length} models`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div class="field">
+      <label for="gemini-model" class="field-label">
+        Model
+      </label>
+      <select
+        id="gemini-model"
+        class="input select"
+        value={custom ? CUSTOM : current}
+        onChange={(e) => {
+          const value = (e.target as HTMLSelectElement).value;
+          if (value === CUSTOM) {
+            setCustom(true);
+            setCustomId(known.has(current) ? '' : current);
+          } else {
+            setCustom(false);
+            updateSettings({ geminiModel: value });
+          }
+        }}
+      >
+        <optgroup label="Always the newest">
+          {GEMINI_SHORTCUTS.map((m) => (
+            <option value={m.id}>
+              {m.label} — {m.hint}
+            </option>
+          ))}
+        </optgroup>
+        {listed.length > 0 && (
+          <optgroup label={`Models your key can use (${listed.length})`}>
+            {listed.map((m) => (
+              <option value={m.id}>{m.label === m.id ? m.id : `${m.label} · ${m.id}`}</option>
+            ))}
+          </optgroup>
+        )}
+        {!known.has(current) && <option value={current}>{current}</option>}
+        <option value={CUSTOM}>Other — type a model ID…</option>
+      </select>
+
+      {custom && (
+        <form
+          class="key-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const id = customId.trim();
+            if (!isModelId(id)) return;
+            updateSettings({ geminiModel: id });
+            setCustom(false);
+            showToast(`Using ${id}`);
+          }}
+        >
+          <label for="custom-model" class="sr-only">
+            Model ID
+          </label>
+          <input
+            id="custom-model"
+            class="input"
+            type="text"
+            autoComplete="off"
+            autoCapitalize="off"
+            spellcheck={false}
+            placeholder="e.g. gemini-3.5-flash"
+            value={customId}
+            onInput={(e) => setCustomId((e.target as HTMLInputElement).value)}
+          />
+          <button type="submit" class="btn-secondary small-btn" disabled={!isModelId(customId.trim())}>
+            Use
+          </button>
+        </form>
+      )}
+
+      <button type="button" class="link-btn left" disabled={!settings.geminiKey.trim() || loading} onClick={load}>
+        {loading ? 'Loading models…' : listed.length > 0 ? 'Refresh the model list' : 'Show all models my key can use'}
+      </button>
+      {!settings.geminiKey.trim() && <span class="field-hint">Save your key first to see every model it can use.</span>}
+      {error && <span class="field-hint error-text">{error}</span>}
+
+      <label class="toggle-row">
+        <input
+          type="checkbox"
+          checked={settings.geminiAutoSwitch}
+          onChange={(e) => updateSettings({ geminiAutoSwitch: (e.target as HTMLInputElement).checked })}
+        />
+        <span>
+          <strong>Switch models automatically</strong>
+          <span class="muted">When a model is busy or out of free uses, try the next one.</span>
+        </span>
+      </label>
+    </div>
   );
 }

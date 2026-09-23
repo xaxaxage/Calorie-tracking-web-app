@@ -8,12 +8,27 @@ export const STORAGE_KEY = 'calorie-tracker:v1';
 
 export const DEFAULT_GOALS: Goals = { kcal: 2300, p: 150, c: 250, f: 75 };
 
+export const DEFAULT_GEMINI_MODEL = 'gemini-flash-lite-latest';
+
+/** Gemini model IDs look like "gemini-3.5-flash-lite" or "gemma-3-27b-it". */
+export function isModelId(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-z0-9][a-z0-9.\-_]{1,80}$/i.test(value);
+}
+
 export function emptyData(): AppData {
   return {
     version: 1,
     entries: [],
     favorites: [],
-    settings: { goals: { ...DEFAULT_GOALS }, aiProvider: 'gemini', apiKey: '', geminiKey: '', geminiModel: 'gemini-flash-lite-latest' },
+    settings: {
+      goals: { ...DEFAULT_GOALS },
+      aiProvider: 'gemini',
+      apiKey: '',
+      geminiKey: '',
+      geminiModel: DEFAULT_GEMINI_MODEL,
+      geminiModels: [],
+      geminiAutoSwitch: true,
+    },
   };
 }
 
@@ -86,7 +101,14 @@ export function parseData(raw: unknown): AppData {
           : 'gemini',
       apiKey,
       geminiKey: str(r.settings?.geminiKey),
-      geminiModel: r.settings?.geminiModel === 'gemini-flash-latest' ? 'gemini-flash-latest' : 'gemini-flash-lite-latest',
+      geminiModel: isModelId(r.settings?.geminiModel) ? r.settings.geminiModel : DEFAULT_GEMINI_MODEL,
+      geminiModels: Array.isArray(r.settings?.geminiModels)
+        ? r.settings.geminiModels
+            .filter((m: any) => m && isModelId(m.id))
+            .map((m: any) => ({ id: m.id, label: typeof m.label === 'string' && m.label ? m.label : m.id }))
+            .slice(0, 100)
+        : [],
+      geminiAutoSwitch: r.settings?.geminiAutoSwitch !== false,
     },
   };
 }

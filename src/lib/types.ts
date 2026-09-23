@@ -59,7 +59,11 @@ export interface Goals extends Macros {}
 
 export type AiProvider = 'gemini' | 'claude';
 
-export type GeminiModel = 'gemini-flash-lite-latest' | 'gemini-flash-latest';
+export interface GeminiModelInfo {
+  /** Model ID as used in API calls, e.g. "gemini-flash-lite-latest". */
+  id: string;
+  label: string;
+}
 
 export interface Settings {
   goals: Goals;
@@ -69,7 +73,12 @@ export interface Settings {
   apiKey: string;
   /** Google AI Studio key (Gemini, has a free allowance). Stored only on this device. */
   geminiKey: string;
-  geminiModel: GeminiModel;
+  /** Any Gemini API model ID. */
+  geminiModel: string;
+  /** Models this key can use, as last fetched from Google. */
+  geminiModels: GeminiModelInfo[];
+  /** Try other models when the chosen one is busy or out of free uses. */
+  geminiAutoSwitch: boolean;
 }
 
 export interface AppData {

@@ -125,13 +125,22 @@ export function normalizeItems(raw: unknown, withPosition: boolean): EstimatedIt
     .slice(0, 20);
 }
 
-/** Parse a JSON reply, tolerating a stray code fence around it. */
+/** Parse a JSON reply, tolerating a code fence or a sentence around the JSON object. */
 export function parseJsonReply(text: string | undefined): unknown {
   if (!text) throw new AiError('The estimate came back empty. Try again.');
   const trimmed = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   try {
     return JSON.parse(trimmed);
   } catch {
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(trimmed.slice(start, end + 1));
+      } catch {
+        // fall through
+      }
+    }
     throw new AiError('The estimate came back incomplete. Try again.');
   }
 }
