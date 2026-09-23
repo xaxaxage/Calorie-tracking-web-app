@@ -6,6 +6,7 @@ import { fmtKcal, sum } from '../lib/nutrition';
 import { MEAL_LABEL } from '../lib/meals';
 import { finishFlow, goBack, href, navigate } from '../lib/router';
 import { showToast } from '../lib/toast';
+import { toastNote } from '../lib/humor';
 import { MealPicker } from '../components/Common';
 import { ChevronLeft, Copy } from '../components/Icons';
 
@@ -40,7 +41,7 @@ export function CopyMeal({ meal, date }: { meal: MealId; date: string }) {
     showToast(`Copied ${n} ${n === 1 ? 'item' : 'items'} to ${MEAL_LABEL[meal]}`, {
       label: 'Undo',
       run: () => created.forEach((e) => deleteEntry(e.id)),
-    }, { carry: true });
+    }, { carry: true, note: toastNote('added') });
     finishFlow(href('/', { date }));
   };
 

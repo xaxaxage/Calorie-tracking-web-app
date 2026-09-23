@@ -4,6 +4,7 @@ import { aiReady, estimate, providerName } from '../lib/ai';
 import { FOODS } from '../lib/foods';
 import { matchDescription } from '../lib/textmatch';
 import { getData, recentFoods, useData } from '../lib/store';
+import { useLoadingQuip } from '../lib/humor';
 import { AiError } from '../lib/ai/shared';
 import { ProviderLine, UseGeminiButton } from '../components/AiProvider';
 import { goBack, href, navigate } from '../lib/router';
@@ -26,6 +27,7 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
   const ready = aiReady(settings);
   const [text, setText] = useState(initialText);
   const [phase, setPhase] = useState<Phase>({ state: 'edit' });
+  const loadingQuip = useLoadingQuip(phase.state === 'loading', 'text');
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -175,7 +177,10 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
           {phase.state === 'loading' ? (
             <div class="sheet-status">
               <span class="spinner" />
-              <span>{phase.progress ?? `${providerName(settings)} is working it out…`}</span>
+              <span class="loading-text">
+                <span>{phase.progress ?? `${providerName(settings)} is working it out…`}</span>
+                {loadingQuip && <small>{loadingQuip}</small>}
+              </span>
             </div>
           ) : ready ? (
             <div class="stack-10">

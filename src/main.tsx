@@ -4,6 +4,20 @@ import './screens.css';
 import { App } from './app';
 import { initRouter } from './lib/router';
 import { loadSyncConfig } from './lib/sync/state';
+import { getData, subscribe } from './lib/store';
+import { applyTheme } from './lib/theme';
+
+// Keep the color palette in step with Settings.
+let shownTheme = '';
+function syncTheme() {
+  const { theme, customThemes } = getData().settings;
+  const key = `${theme}|${JSON.stringify(customThemes)}`;
+  if (key === shownTheme) return;
+  shownTheme = key;
+  applyTheme(theme, customThemes);
+}
+syncTheme();
+subscribe(syncTheme);
 
 initRouter();
 render(<App />, document.getElementById('app')!);

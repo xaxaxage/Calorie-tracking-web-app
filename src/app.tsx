@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { getEntry, findFood, getSaveError, useData } from './lib/store';
+import { getData, getEntry, findFood, getSaveError, useData } from './lib/store';
 import { toastNavigated } from './lib/toast';
 import { isDateKey, todayKey } from './lib/dates';
 import { mealForTime, parseMeal } from './lib/meals';
@@ -16,6 +16,7 @@ import { Scan } from './screens/Scan';
 import { Photo } from './screens/Photo';
 import { Describe } from './screens/Describe';
 import { Settings } from './screens/Settings';
+import { PaletteEditor } from './screens/PaletteEditor';
 import { ChevronLeft } from './components/Icons';
 
 function Missing({ message }: { message: string }) {
@@ -120,6 +121,16 @@ export function App() {
     case 'settings':
       screen = <Settings />;
       break;
+    case 'palette': {
+      const id = segments[1] ?? 'new';
+      const known = id === 'new' || getData().settings.customThemes.some((c) => c.id === id);
+      screen = known ? (
+        <PaletteEditor id={id} startWithImport={query.get('import') === '1'} />
+      ) : (
+        <Missing message="That palette was deleted." />
+      );
+      break;
+    }
     default:
       screen = <Missing message="Page not found." />;
   }

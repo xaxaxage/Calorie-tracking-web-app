@@ -58,6 +58,12 @@
   --orange-soft: #fdebdd;
   --orange-icon: #c1510c;
   --ring-track: #f4e7dc;
+  --teal-disabled: #9fb8be;
+  --on-teal: #ffffff;
+  --orange-line: #f5c9a6;
+  --on-orange: #2a1405;
+  --on-orange-soft: #3e2a1c;
+  --on-ink: #ffffff;
 
   --protein: #9a031e;
   --protein-soft: #f6e1e4;
@@ -65,6 +71,13 @@
   --carbs-text: #a8520b;
   --fat: #5f0f40;
   --fat-soft: #f2e5ec;
+  --on-protein: #ffffff;
+  --on-fat: #ffffff;
+  --green: #2f8a4a;
+  --green-soft: #e4efe6;
+  --green-ink: #2f6b3a;
+  --stripe-1: #e9e0d5;
+  --stripe-2: #f1eae1;
 
   --scanner: #0b2227;
 
@@ -249,7 +262,7 @@ input[type='search']::-webkit-search-cancel-button {
 }
 .icon-btn.fav-on {
   background: var(--orange-soft);
-  border-color: #f5c9a6;
+  border-color: var(--orange-line);
   color: var(--orange-icon);
 }
 .round-add {
@@ -269,7 +282,7 @@ input[type='search']::-webkit-search-cancel-button {
 .round-add.loud,
 .round-add.done {
   background: var(--teal);
-  color: #fff;
+  color: var(--on-teal);
 }
 .btn-primary,
 .btn-secondary {
@@ -286,11 +299,11 @@ input[type='search']::-webkit-search-cancel-button {
 }
 .btn-primary {
   background: var(--teal);
-  color: #fff;
+  color: var(--on-teal);
   border: none;
 }
 .btn-primary:disabled {
-  background: #9fb8be;
+  background: var(--teal-disabled);
   cursor: default;
 }
 .btn-secondary {
@@ -324,7 +337,7 @@ input[type='search']::-webkit-search-cancel-button {
 }
 .pill[aria-pressed='true'] {
   background: var(--teal);
-  color: #fff;
+  color: var(--on-teal);
   border-color: var(--teal);
 }
 
@@ -336,7 +349,7 @@ input[type='search']::-webkit-search-cancel-button {
   bottom: 0;
   z-index: 20;
   padding: 16px 20px calc(var(--safe-bottom) + 20px);
-  background: linear-gradient(to bottom, rgba(247, 243, 238, 0), var(--bg) 28%);
+  background: linear-gradient(to bottom, transparent, var(--bg) 28%);
   pointer-events: none;
 }
 .footer-inner {
@@ -367,6 +380,20 @@ input[type='search']::-webkit-search-cancel-button {
 }
 .list > * + * {
   border-top: 1px solid var(--divider);
+}
+/* Humor mode remarks */
+.quip {
+  margin-top: -8px;
+  padding: 0 4px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.quip-inline {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
 }
 .list-empty {
   padding: 20px 16px;
@@ -550,8 +577,8 @@ input[type='search']::-webkit-search-cancel-button {
   align-items: center;
   justify-content: center;
   background: var(--orange);
-  color: #2a1405;
-  box-shadow: 0 6px 16px rgba(227, 100, 20, 0.35);
+  color: var(--on-orange);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--orange-deep) 35%, transparent);
 }
 
 /* ── Segmented meal picker ────────────────────────────────────────────── */
@@ -575,7 +602,7 @@ input[type='search']::-webkit-search-cancel-button {
 }
 .segmented button[aria-pressed='true'] {
   background: var(--teal);
-  color: #fff;
+  color: var(--on-teal);
   font-weight: 700;
 }
 
@@ -674,7 +701,7 @@ input[type='search']::-webkit-search-cancel-button {
   padding: 6px 6px 6px 16px;
   border-radius: 16px;
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
   font-size: 15px;
   font-weight: 600;
   box-shadow: 0 8px 24px rgba(22, 38, 43, 0.25);
@@ -684,13 +711,24 @@ input[type='search']::-webkit-search-cancel-button {
 .toast.no-action {
   padding-right: 16px;
 }
+.toast-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 0;
+}
+.toast-note {
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.78;
+}
 .toast button {
   min-height: 36px;
   padding: 0 12px;
   border-radius: 10px;
   border: none;
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: color-mix(in srgb, var(--on-ink) 14%, transparent);
+  color: var(--on-ink);
   font-weight: 700;
   font-size: 14px;
 }
@@ -712,7 +750,7 @@ input[type='search']::-webkit-search-cancel-button {
   padding: 12px 16px;
   border-radius: 14px;
   background: var(--protein);
-  color: #fff;
+  color: var(--on-protein);
   font-size: 14px;
   font-weight: 600;
 }
@@ -735,7 +773,7 @@ input[type='search']::-webkit-search-cancel-button {
   background: var(--orange-soft);
   border-radius: 16px;
   font-size: 14px;
-  color: #3e2a1c;
+  color: var(--on-orange-soft);
 }
 .notice > span {
   flex: 1;

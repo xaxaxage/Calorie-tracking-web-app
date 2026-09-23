@@ -23,6 +23,7 @@ import { MEAL_LABEL } from '../lib/meals';
 import { todayKey } from '../lib/dates';
 import { finishFlow, goBack, href } from '../lib/router';
 import { showToast } from '../lib/toast';
+import { toastNote } from '../lib/humor';
 import { MacroLabel, MealPicker, SplitBar } from '../components/Common';
 import { ChevronLeft, Minus, Plus, Star } from '../components/Icons';
 
@@ -112,7 +113,7 @@ export function FoodDetail({
       return;
     }
     const created = addEntry({ ...fields, source: food.id.startsWith('off:') ? 'barcode' : 'food' });
-    showToast(`Added to ${MEAL_LABEL[meal]}`, { label: 'Undo', run: () => deleteEntry(created.id) }, { carry: true });
+    showToast(`Added to ${MEAL_LABEL[meal]}`, { label: 'Undo', run: () => deleteEntry(created.id) }, { carry: true, note: toastNote('added') });
     finishFlow(href('/', { date }));
   };
 
@@ -120,7 +121,7 @@ export function FoodDetail({
     if (!entry) return;
     deleteEntry(entry.id);
     const { id: _id, createdAt: _c, ...rest } = entry;
-    showToast(`Removed ${entry.name}`, { label: 'Undo', run: () => addEntry(rest) }, { carry: true });
+    showToast(`Removed ${entry.name}`, { label: 'Undo', run: () => addEntry(rest) }, { carry: true, note: toastNote('removed') });
     goBack(href('/', { date }));
   };
 
@@ -138,7 +139,7 @@ export function FoodDetail({
             aria-label="Save to favorites"
             onClick={() => {
               toggleFavorite(food);
-              showToast(fav ? 'Removed from favorites' : 'Saved to favorites');
+              showToast(fav ? 'Removed from favorites' : 'Saved to favorites', undefined, { note: fav ? undefined : toastNote('favorite') });
             }}
           >
             <Star filled={fav} />

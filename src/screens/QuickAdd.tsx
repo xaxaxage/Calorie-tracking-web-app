@@ -5,6 +5,7 @@ import { fmtKcal, kcalFromMacros, oneDecimal, parseNumber } from '../lib/nutriti
 import { MEAL_LABEL } from '../lib/meals';
 import { finishFlow, goBack, href } from '../lib/router';
 import { showToast } from '../lib/toast';
+import { toastNote } from '../lib/humor';
 import { MealPicker } from '../components/Common';
 import { ChevronLeft } from '../components/Icons';
 
@@ -48,7 +49,7 @@ export function QuickAdd({ meal: initialMeal, date, entry }: { meal: MealId; dat
       return;
     }
     const created = addEntry({ ...fields, source: 'quick' });
-    showToast(`Added to ${MEAL_LABEL[meal]}`, { label: 'Undo', run: () => deleteEntry(created.id) }, { carry: true });
+    showToast(`Added to ${MEAL_LABEL[meal]}`, { label: 'Undo', run: () => deleteEntry(created.id) }, { carry: true, note: toastNote('added') });
     finishFlow(href('/', { date }));
   };
 
@@ -56,7 +57,7 @@ export function QuickAdd({ meal: initialMeal, date, entry }: { meal: MealId; dat
     if (!entry) return;
     deleteEntry(entry.id);
     const { id: _id, createdAt: _c, ...rest } = entry;
-    showToast(`Removed ${entry.name}`, { label: 'Undo', run: () => addEntry(rest) }, { carry: true });
+    showToast(`Removed ${entry.name}`, { label: 'Undo', run: () => addEntry(rest) }, { carry: true, note: toastNote('removed') });
     goBack(href('/', { date }));
   };
 

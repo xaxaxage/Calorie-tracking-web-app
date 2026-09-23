@@ -3,12 +3,15 @@ import type { AppData, Entry, Food, Goals, Settings, SyncMeta } from './types';
 import { MEALS } from './types';
 import { builtinFood } from './foods';
 import { isDateKey } from './dates';
+import { cleanCustomTheme, DEFAULT_THEME } from './theme';
 
 export const STORAGE_KEY = 'calorie-tracker:v1';
 
 export const DEFAULT_GOALS: Goals = { kcal: 2300, p: 150, c: 250, f: 75 };
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-flash-lite-latest';
+
+export const MAX_CUSTOM_THEMES = 12;
 
 /** Gemini model IDs look like "gemini-3.5-flash-lite" or "gemma-3-27b-it". */
 export function isModelId(value: unknown): value is string {
@@ -33,6 +36,9 @@ export function emptyData(): AppData {
       geminiModel: DEFAULT_GEMINI_MODEL,
       geminiModels: [],
       geminiAutoSwitch: true,
+      theme: DEFAULT_THEME,
+      customThemes: [],
+      humor: true,
     },
   };
 }
@@ -141,6 +147,11 @@ export function parseData(raw: unknown): AppData {
             .slice(0, 100)
         : [],
       geminiAutoSwitch: r.settings?.geminiAutoSwitch !== false,
+      theme: typeof r.settings?.theme === 'string' && /^[a-z0-9-]{1,60}$/.test(r.settings.theme) ? r.settings.theme : DEFAULT_THEME,
+      customThemes: Array.isArray(r.settings?.customThemes)
+        ? r.settings.customThemes.map(cleanCustomTheme).filter(Boolean).slice(0, MAX_CUSTOM_THEMES)
+        : [],
+      humor: r.settings?.humor !== false,
     },
   };
 }

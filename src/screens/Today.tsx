@@ -2,6 +2,7 @@ import type { MealId } from '../lib/types';
 import { MEAL_DISPLAY_ORDER } from '../lib/types';
 import { useData } from '../lib/store';
 import { addDays, longDate, relativeDayTitle, todayKey } from '../lib/dates';
+import { dayQuip, emptyMealText } from '../lib/humor';
 import { entriesFor, fmtKcal, percent, sum } from '../lib/nutrition';
 import { MEAL_LABEL } from '../lib/meals';
 import { href, navigate } from '../lib/router';
@@ -32,6 +33,15 @@ export function Today({ date }: { date: string }) {
     { key: 'f' as const, label: 'Fat', value: totals.f, goal: goals.f },
   ];
 
+  const remark = dayQuip({
+    date,
+    today,
+    count: dayEntries.length,
+    kcal: totals.kcal,
+    goal: goals.kcal,
+    proteinHit: goals.p > 0 && totals.p >= goals.p,
+  });
+
   return (
     <>
       <main class="screen with-nav">
@@ -58,6 +68,8 @@ export function Today({ date }: { date: string }) {
             </button>
           </div>
         </header>
+
+        {remark && <p class="quip">{remark}</p>}
 
         <section aria-label="Daily summary" class="card summary">
           <div class="summary-top">
@@ -145,7 +157,7 @@ export function Today({ date }: { date: string }) {
                     onClick={() => (empty ? startAdd(meal) : navigate(href(`/meal/${meal}`, { date })))}
                   >
                     <span class="row-title">{MEAL_LABEL[meal]}</span>
-                    <span class="row-sub">{empty ? 'Nothing logged yet' : items.map((e) => e.name).join(', ')}</span>
+                    <span class="row-sub">{empty ? emptyMealText(meal, date) : items.map((e) => e.name).join(', ')}</span>
                   </button>
                   {!empty && <span class="row-kcal">{fmtKcal(kcal)} kcal</span>}
                   <button

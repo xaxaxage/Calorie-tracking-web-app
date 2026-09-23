@@ -81,6 +81,29 @@ export interface Settings {
   geminiModels: GeminiModelInfo[];
   /** Try other models when the chosen one is busy or out of free uses. */
   geminiAutoSwitch: boolean;
+  /** Palette id: a built-in one, "auto", or a custom palette's id. */
+  theme: string;
+  customThemes: CustomTheme[];
+  /** Playful remarks here and there. */
+  humor: boolean;
+}
+
+/** The colors a palette is built from, as #rrggbb. */
+export interface ThemeBase {
+  bg: string;
+  surface: string;
+  ink: string;
+  primary: string;
+  accent: string;
+  protein: string;
+  carbs: string;
+  fat: string;
+}
+
+export interface CustomTheme {
+  id: string;
+  name: string;
+  base: ThemeBase;
 }
 
 /** Bookkeeping that lets two devices merge their changes. */

@@ -52,7 +52,10 @@ export function ToastHost({ raised }: { raised: boolean }) {
   return (
     <div class="toast-wrap" style={raised ? undefined : { bottom: 'calc(var(--safe-bottom) + 100px)' }} role="status" aria-live="polite">
       <div class={`toast${toast.action ? '' : ' no-action'}`} key={toast.id}>
-        <span>{toast.message}</span>
+        <span class="toast-text">
+          <span>{toast.message}</span>
+          {toast.note && <span class="toast-note">{toast.note}</span>}
+        </span>
         {toast.action && (
           <button
             type="button"

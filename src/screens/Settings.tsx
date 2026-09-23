@@ -18,7 +18,10 @@ import { showToast } from '../lib/toast';
 import { ChevronLeft } from '../components/Icons';
 import { GEMINI_SHORTCUTS, listGeminiModels } from '../lib/ai';
 import { SyncSettings } from './SyncSettings';
+import { AppearanceSettings } from './AppearanceSettings';
+import { quip } from '../lib/humor';
 import { loadSyncConfig } from '../lib/sync/state';
+import { saveFile } from '../lib/files';
 
 const GOAL_FIELDS = [
   { key: 'p', label: 'Protein', dot: 'p' },
@@ -29,23 +32,7 @@ const GOAL_FIELDS = [
 async function exportBackup() {
   const json = backupJson();
   const name = `calorie-tracker-backup-${todayKey()}.json`;
-  const file = new File([json], name, { type: 'application/json' });
-  try {
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Calorie Tracker backup' });
-      return;
-    }
-  } catch (err) {
-    if ((err as Error).name === 'AbortError') return;
-  }
-  const url = URL.createObjectURL(file);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  await saveFile(new File([json], name, { type: 'application/json' }), 'Calorie Tracker backup');
 }
 
 export function Settings() {
@@ -65,6 +52,7 @@ export function Settings() {
     if (n > 0) updateSettings({ goals: { ...getData().settings.goals, [field]: n } });
   };
 
+  const footerQuip = quip('footer');
   const macroKcal = Math.round(kcalFromMacros(goals));
   const mismatch = Math.abs(macroKcal - goals.kcal) > 50;
 
@@ -173,6 +161,8 @@ export function Settings() {
         </button>
       </section>
 
+      <AppearanceSettings />
+
       <AiSettings />
 
       <SyncSettings />
@@ -232,6 +222,8 @@ export function Settings() {
           backup first.
         </p>
       </section>
+
+      {footerQuip && <p class="quip center">{footerQuip}</p>}
     </main>
   );
 }

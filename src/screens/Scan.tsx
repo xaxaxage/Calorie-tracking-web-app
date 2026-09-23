@@ -5,6 +5,7 @@ import { fmtGrams, fmtKcal, macrosFor, oneDecimal } from '../lib/nutrition';
 import { MEAL_LABEL } from '../lib/meals';
 import { finishFlow, href, navigate } from '../lib/router';
 import { showToast } from '../lib/toast';
+import { quip, toastNote } from '../lib/humor';
 import { LookupError, lookupBarcode } from '../lib/openfoodfacts';
 import { cameraProblem, getDetector, isValidProductCode, openCamera, type CameraProblem } from '../lib/scanner';
 import { Check, Close, Flashlight } from '../components/Icons';
@@ -166,10 +167,11 @@ export function Scan({ meal, date }: { meal: MealId; date: string }) {
       ...macrosFor(food, amount),
       source: 'barcode',
     });
-    showToast(`Added to ${MEAL_LABEL[meal]}`, { label: 'Undo', run: () => deleteEntry(created.id) }, { carry: true });
+    showToast(`Added to ${MEAL_LABEL[meal]}`, { label: 'Undo', run: () => deleteEntry(created.id) }, { carry: true, note: toastNote('added') });
     close();
   };
 
+  const hint = quip('scanHint');
   let prompt = 'Point the camera at the barcode';
   if (cameraState === 'starting') prompt = 'Starting camera…';
   else if (cameraState !== 'on') prompt = CAMERA_MESSAGES[cameraState];
@@ -208,6 +210,7 @@ export function Scan({ meal, date }: { meal: MealId; date: string }) {
 
       <div class="scanner-copy">
         <p role="status">{prompt}</p>
+        {cameraState === 'on' && hint && <p class="scanner-quip">{hint}</p>}
         <button type="button" class="ghost-btn" onClick={() => setResult({ state: 'manual' })}>
           Type the number instead
         </button>

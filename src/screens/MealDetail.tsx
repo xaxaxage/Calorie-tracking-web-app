@@ -5,6 +5,7 @@ import { entriesFor, fmtGrams, fmtKcal, sum } from '../lib/nutrition';
 import { MEAL_LABEL } from '../lib/meals';
 import { goBack, href, navigate } from '../lib/router';
 import { showToast } from '../lib/toast';
+import { toastNote } from '../lib/humor';
 import { ChevronLeft, Plus, Trash } from '../components/Icons';
 
 function describe(e: Entry): string {
@@ -20,7 +21,7 @@ export function MealDetail({ meal, date }: { meal: MealId; date: string }) {
   const remove = (e: Entry) => {
     deleteEntry(e.id);
     const { id: _id, createdAt: _c, ...rest } = e;
-    showToast(`Removed ${e.name}`, { label: 'Undo', run: () => addEntry(rest) });
+    showToast(`Removed ${e.name}`, { label: 'Undo', run: () => addEntry(rest) }, { note: toastNote('removed') });
   };
 
   return (

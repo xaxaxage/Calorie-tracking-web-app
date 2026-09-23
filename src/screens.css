@@ -502,8 +502,8 @@
 }
 
 .tile-icon.green {
-  background: #e4efe6;
-  color: #2f6b3a;
+  background: var(--green-soft);
+  color: var(--green-ink);
 }
 .describe-row {
   display: flex;
@@ -809,7 +809,7 @@
   flex-shrink: 0;
 }
 .sync-status.synced .sync-dot {
-  background: #2f8a4a;
+  background: var(--green);
 }
 .sync-status.syncing .sync-dot {
   background: var(--orange);
@@ -950,7 +950,7 @@
   top: 94px;
   height: 2px;
   background: var(--orange);
-  box-shadow: 0 0 12px rgba(251, 139, 36, 0.8);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--orange) 80%, transparent);
 }
 .viewfinder.active .scan-line {
   animation: scan 2.2s ease-in-out infinite;
@@ -976,6 +976,11 @@
   align-items: center;
   gap: 16px;
   text-align: center;
+}
+.scanner-copy .scanner-quip {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: -8px;
 }
 .scanner-copy p {
   font-size: 15px;
@@ -1042,7 +1047,7 @@
   top: 7px;
   height: 5px;
   border-radius: 3px;
-  background: #ddd5cb;
+  background: var(--line-field);
 }
 .sheet-title {
   font-family: var(--font-display);
@@ -1128,7 +1133,7 @@
   height: 210px;
   border-radius: 22px;
   overflow: hidden;
-  background: repeating-linear-gradient(135deg, #e9e0d5 0 12px, #f1eae1 12px 24px);
+  background: repeating-linear-gradient(135deg, var(--stripe-1) 0 12px, var(--stripe-2) 12px 24px);
 }
 .photo-frame img {
   display: block;
@@ -1158,7 +1163,7 @@
   margin: -14px 0 0 -14px;
   border-radius: 14px;
   background: var(--fat);
-  color: #fff;
+  color: var(--on-fat);
   font-size: 14px;
   font-weight: 700;
   display: flex;
@@ -1177,6 +1182,16 @@
   color: #fff;
   font-size: 15px;
   font-weight: 700;
+}
+.loading-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.loading-text small {
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.85;
 }
 .photo-row {
   display: flex;
@@ -1296,4 +1311,229 @@
   .btn-primary {
     font-size: 16px;
   }
+}
+
+/* ── Appearance ───────────────────────────────────────────────────────── */
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.palette-option {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+  border: 1.5px solid var(--line-control);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+}
+.palette-option[aria-checked='true'] {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 1px var(--teal);
+}
+.palette-option.new {
+  border-style: dashed;
+  color: var(--teal);
+}
+.palette-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 2px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.palette-name svg {
+  flex-shrink: 0;
+  color: var(--teal);
+}
+.swatch {
+  display: flex;
+  align-items: flex-end;
+  height: 52px;
+  padding: 10px 8px 0;
+  border-radius: 11px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.swatch.new {
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--quiet);
+  box-shadow: none;
+}
+.swatch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 7px 7px 0;
+  border-radius: 7px 7px 0 0;
+}
+.swatch-text {
+  width: 70%;
+  height: 4px;
+  border-radius: 2px;
+}
+.swatch-dots {
+  display: flex;
+  gap: 4px;
+}
+.swatch-dots i {
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+}
+.swatch-dots i:first-child {
+  width: 22px;
+}
+.swatch-split {
+  position: relative;
+  display: block;
+  height: 52px;
+}
+.swatch-split .swatch {
+  position: absolute;
+  inset: 0;
+}
+/* Light palette on the left, dark on the right, split on a diagonal. */
+.swatch-split .swatch:last-child {
+  clip-path: polygon(64% 0, 100% 0, 100% 100%, 36% 100%);
+}
+@media (max-width: 350px) {
+  .palette-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* An iOS-style switch built on a checkbox. */
+.toggle-row input.switch {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  width: 46px;
+  height: 28px;
+  margin: 0;
+  border-radius: 14px;
+  background: var(--line-field);
+  transition: background-color 0.2s;
+  cursor: pointer;
+}
+.toggle-row input.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s;
+}
+.toggle-row input.switch:checked {
+  background: var(--teal);
+}
+.toggle-row input.switch:checked::after {
+  transform: translateX(18px);
+}
+.toggle-row input.switch:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+.switch-row {
+  align-items: center;
+  padding-top: 4px;
+}
+
+/* Palette editor */
+.color-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 112px;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+}
+.color-well {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line-field);
+  border-radius: 12px;
+  background: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  overflow: hidden;
+}
+.color-well::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.color-well::-webkit-color-swatch {
+  border: none;
+  border-radius: 11px;
+}
+.color-well::-moz-color-swatch {
+  border: none;
+  border-radius: 11px;
+}
+.color-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+.input.hex {
+  height: 44px;
+  padding: 0 10px;
+  font-size: 15px;
+  text-transform: lowercase;
+}
+.input.hex.invalid {
+  border-color: var(--protein);
+}
+.input.textarea.short {
+  min-height: 84px;
+}
+.section-title.pad-bottom {
+  padding-bottom: 4px;
+}
+.list-section-label.pad-top {
+  padding-top: 12px;
+}
+.palette-preview {
+  gap: 14px;
+}
+.preview-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.preview-ring {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+}
+.preview-macros {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.preview-btn {
+  pointer-events: none;
+}
+.btn-secondary.narrow {
+  flex: 0 0 auto;
+  width: 110px;
+}
+.quip.center {
+  margin-top: 0;
+  text-align: center;
 }

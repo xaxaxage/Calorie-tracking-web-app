@@ -5,6 +5,7 @@ import { cleanAmount, fmtKcal, macrosFor, parseNumber, sum } from '../lib/nutrit
 import { MEAL_LABEL } from '../lib/meals';
 import { finishFlow, href } from '../lib/router';
 import { showToast } from '../lib/toast';
+import { toastNote } from '../lib/humor';
 
 export interface ReviewItem {
   name: string;
@@ -68,7 +69,7 @@ export function EstimateReview({
     showToast(
       `Added ${created.length} ${created.length === 1 ? 'item' : 'items'} to ${MEAL_LABEL[meal]}`,
       { label: 'Undo', run: () => created.forEach((e) => deleteEntry(e.id)) },
-      { carry: true },
+      { carry: true, note: toastNote('added') },
     );
     finishFlow(href('/', { date }));
   };

@@ -6,6 +6,8 @@ export interface Toast {
   /** Survives the next screen change (for toasts shown right before navigating). */
   carry: boolean;
   action?: { label: string; run: () => void };
+  /** A smaller second line (humor mode). */
+  note?: string;
 }
 
 let current: Toast | null = null;
@@ -17,10 +19,10 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
-export function showToast(message: string, action?: Toast['action'], opts: { carry?: boolean } = {}) {
-  current = { id: nextId++, message, action, carry: !!opts.carry };
+export function showToast(message: string, action?: Toast['action'], opts: { carry?: boolean; note?: string } = {}) {
+  current = { id: nextId++, message, action, carry: !!opts.carry, note: opts.note };
   clearTimeout(timer);
-  timer = setTimeout(dismissToast, action ? 5000 : 2600);
+  timer = setTimeout(dismissToast, action ? 5000 : opts.note ? 3600 : 2600);
   emit();
 }
 

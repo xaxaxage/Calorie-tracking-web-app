@@ -14,6 +14,7 @@ import { MEAL_LABEL } from '../lib/meals';
 import { finishFlow, href, navigate } from '../lib/router';
 import { LookupError, searchProducts } from '../lib/openfoodfacts';
 import { MealPicker } from '../components/Common';
+import { quip } from '../lib/humor';
 import { Barcode, Bolt, Camera, Chat, Check, ChevronRight, Close, Copy, Plus, Search } from '../components/Icons';
 
 type Tab = 'recent' | 'favorites';
@@ -171,9 +172,12 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
     setAdded({ ...added, [key]: entry.id });
   };
 
-  const renderList = (items: Listed[], empty: string) =>
+  const renderList = (items: Listed[], empty: string, humorLine?: string | null) =>
     items.length === 0 ? (
-      <div class="list-empty">{empty}</div>
+      <div class="list-empty">
+        {empty}
+        {q && humorLine && <span class="quip-inline">{humorLine}</span>}
+      </div>
     ) : (
       items.map((item) => (
         <FoodRow
@@ -243,7 +247,7 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
 
       {q ? (
         <section aria-label="Search results" class="stack-10">
-          <div class="list">{renderList(localResults, `No foods in the list match “${q}”.`)}</div>
+          <div class="list">{renderList(localResults, `No foods in the list match “${q}”.`, quip('noResults', q))}</div>
           {q.length >= 3 && (
             <>
               <h2 class="list-section-label">From Open Food Facts</h2>
@@ -261,7 +265,7 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
                     </button>
                   </div>
                 )}
-                {online.state === 'done' && renderList(onlineResults, 'No products found online.')}
+                {online.state === 'done' && renderList(onlineResults, 'No products found online.', quip('noOnline', q))}
               </div>
             </>
           )}

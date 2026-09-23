@@ -3,6 +3,7 @@ import type { MealId } from '../lib/types';
 import type { EstimatedItem, PreparedImage } from '../lib/ai';
 import { aiReady, estimate, prepareImage, providerName } from '../lib/ai';
 import { getData, useData } from '../lib/store';
+import { quip, useLoadingQuip } from '../lib/humor';
 import { AiError } from '../lib/ai/shared';
 import { ProviderLine, UseGeminiButton } from '../components/AiProvider';
 import { goBack, href } from '../lib/router';
@@ -22,6 +23,7 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
   const settings = data.settings;
   const ready = aiReady(settings);
   const [phase, setPhase] = useState<Phase>({ state: 'pick' });
+  const loadingQuip = useLoadingQuip(phase.state === 'analyzing', 'photo');
   const cameraInput = useRef<HTMLInputElement>(null);
   const libraryInput = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -114,7 +116,10 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
           {phase.state === 'analyzing' && (
             <div class="photo-overlay" role="status">
               <span class="spinner" />
-              {phase.progress ?? 'Estimating portions…'}
+              <span class="loading-text">
+                <span>{phase.progress ?? 'Estimating portions…'}</span>
+                {loadingQuip && <small>{loadingQuip}</small>}
+              </span>
             </div>
           )}
         </div>
@@ -182,7 +187,9 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
         <>
           <div class="stack-2 pad-4">
             <h2 class="section-title">No food found</h2>
-            <span class="muted small-text">Try a closer photo with the whole plate in view.</span>
+            <span class="muted small-text">
+              {quip('noFoodInPhoto', String(done.id))} Try a closer photo with the whole plate in view.
+            </span>
           </div>
           <button type="button" class="btn-primary" onClick={retake}>
             Retake

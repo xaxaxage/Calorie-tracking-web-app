@@ -25,7 +25,13 @@ barcode scanner, photo estimate and quick add.
 - **Quick add** – just calories (and optionally macros), with a hint when the macros don't add up.
 - **Copy meal** – copy any meal from the last two weeks into another meal or day.
 - **Edit** – open a meal to change an item's amount, move it to another meal, or delete it (with undo).
-- **Settings** – daily calorie and macro goals, API key, export / import a backup, delete all data.
+- **Appearance** – ten color palettes (four of them dark, plus Auto that follows the phone's dark mode) and your
+  own palettes: pick colors, paste a list of hex codes or a [Coolors](https://coolors.co) link, open a shared
+  palette file, or take the colors from a photo.
+- **Humor mode** – the occasional light-hearted remark (a line under Today's title, playful empty meals, a note on
+  some toasts, loading lines while the AI works), in the spirit of Discord's loading screens. One switch turns it
+  off for plain text everywhere.
+- **Settings** – daily calorie and macro goals, appearance, API key, sync, export / import a backup, delete all data.
 - Works offline (except online search, barcode lookups and photo estimates) once loaded.
 
 ## Use it on your iPhone
@@ -95,6 +101,35 @@ Things to know: public relays are run by volunteers and can be slow or go away, 
 and why each device keeps a full copy — keep exporting a backup now and then. Anyone with the 12 words can read
 and change your log. **Delete all entries** deletes on every synced device.
 
+## Appearance and humor
+
+**Settings → Appearance** has the palettes. Tap one and the whole app changes at once. Palettes are saved per
+device (so your phone can be dark while a laptop stays light) and are included in backups.
+
+To make your own, tap **Your own**:
+
+- set eight colors: background, cards, text, main (buttons, links, tabs), accent (the ring and the + button) and
+  one per macro. The whole app previews them while you edit;
+- or **Import** from a photo (its main colors are picked out), from a palette file someone shared, or by pasting
+  hex codes or a Coolors link (`https://coolors.co/264653-2a9d8f-e9c46a-f4a261-e76f51`). The app works out which
+  color is which, and you can adjust them afterwards;
+- **Share file** / **Copy as text** gives a small JSON file that imports on any device:
+
+  ```json
+  { "name": "Sunset", "colors": { "bg": "#fff7f0", "surface": "#ffffff", "ink": "#2b1a12",
+    "primary": "#b23a48", "accent": "#fcb97d", "protein": "#9a031e", "carbs": "#f4a261", "fat": "#5f0f40" } }
+  ```
+
+  Names like `background`, `text`, `main` and `accent` work too.
+
+The app derives about forty shades from those colors and adjusts text colors until they are readable (WCAG AA),
+so a pastel main color or a low-contrast text color can't make the app unreadable. The built-in palettes are
+checked the same way in the tests.
+
+**Humor mode** is on by default and has its own switch under the palettes. The remarks are kind by design: they
+joke about the app, the food and the day, never about weight, "good" or "bad" food, or willpower (a test enforces
+this). Most toasts stay plain; a note appears on the first one and then on every third.
+
 ## Your data
 
 There is no server and no account. Everything lives in the browser storage (`localStorage`) of the app on
@@ -103,7 +138,7 @@ your phone, as one JSON record under the key `calorie-tracker:v1`:
 - **entries** – one per logged item: day, meal, name, amount, calories and macros, plus a copy of the food's
   per-100 g values so the portion can be edited later
 - **favorites** – foods you starred
-- **settings** – daily goals, which AI to use, and your API keys
+- **settings** – daily goals, which AI to use, your API keys, palette and humor mode
 
 Photos and descriptions are not kept: they are only sent to the AI you chose while estimating. Online search and barcode lookups send
 just the search text or barcode number to Open Food Facts.
