@@ -4,7 +4,7 @@ import { getData } from './store';
 
 /**
  * Humor mode: small, kind remarks in places people glance at anyway, in the
- * spirit of Discord's loading lines. Never about weight or "bad" food, and
+ * spirit of playful loading screens. Never about weight or "bad" food, and
  * never in the way: when humor is off (Settings → Appearance) every function
  * here returns the plain text or nothing.
  *

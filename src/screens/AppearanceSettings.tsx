@@ -94,7 +94,7 @@ export function AppearanceSettings() {
           <strong>Humor mode</strong>
           <span class="muted">
             {humor
-              ? 'On: the occasional light-hearted remark, like Discord’s loading lines. Never about your weight or food choices.'
+              ? 'On: a light-hearted remark here and there. Never about your weight or food choices.'
               : 'Off: plain, to-the-point text everywhere.'}
           </span>
         </span>
