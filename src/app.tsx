@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useState } from 'preact/hooks';
 import { getData, getEntry, findFood, getSaveError, useData } from './lib/store';
 import { toastNavigated } from './lib/toast';
 import { isDateKey, todayKey } from './lib/dates';
 import { mealForTime, parseMeal } from './lib/meals';
-import { goBack, useRoute } from './lib/router';
+import { goBack, takeScrollToTop, useRoute } from './lib/router';
 import { ToastHost } from './components/Common';
 import { Today } from './screens/Today';
 import { History } from './screens/History';
@@ -45,6 +45,10 @@ export function App() {
   useData();
   const saveError = getSaveError();
   useEffect(() => toastNavigated(), [route.path]);
+  // A newly opened screen starts at the top; going back keeps the browser's restored position.
+  useLayoutEffect(() => {
+    if (takeScrollToTop()) window.scrollTo(0, 0);
+  }, [route.raw]);
 
   // An app left open overnight should move on to the new day when it comes back.
   const [, setWake] = useState(0);

@@ -1755,3 +1755,30 @@
   padding: 0 12px;
   color: var(--ink);
 }
+
+/* Add food: the browse and describe views swap in place (see Crossfade). */
+.mode-stage {
+  position: relative;
+}
+.mode-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.mode-panel.leaving {
+  position: absolute;
+  inset: 0;
+  /* Fading out, it may not make the page longer (that would flash a scrollbar). */
+  overflow: hidden;
+  pointer-events: none;
+}
+/* The field glows softly while it's describing a meal. */
+.describe-field.active textarea {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--teal) 14%, transparent);
+}
+.describe-field.active textarea:focus {
+  box-shadow:
+    0 0 0 1px var(--teal),
+    0 0 0 5px color-mix(in srgb, var(--teal) 14%, transparent);
+}

@@ -43,7 +43,11 @@ export function initRouter() {
   if (typeof history.state?.idx !== 'number') {
     history.replaceState({ ...(history.state ?? {}), idx: 0 }, '');
   }
-  window.addEventListener('popstate', emit);
+  window.addEventListener('popstate', () => {
+    // Back/forward: the browser restores that screen's scroll position itself.
+    scrollToTopPending = false;
+    emit();
+  });
   // Route in-app links through navigate() so every entry carries an index.
   document.addEventListener('click', (e) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -109,8 +113,19 @@ export function navigate(to: string, opts: NavigateOptions = {}) {
   const url = `#${to}`;
   if (opts.replace) history.replaceState({ idx }, '', url);
   else history.pushState({ idx: idx + 1 }, '', url);
-  window.scrollTo(0, 0);
+  // Scrolled to the top once the new screen is drawn (see takeScrollToTop), not
+  // now: scrolling now would jolt the old screen to the top for a moment first.
+  scrollToTopPending = true;
   emit();
+}
+
+let scrollToTopPending = false;
+
+/** True once after navigate(): the screen that just rendered should start at the top. */
+export function takeScrollToTop(): boolean {
+  const pending = scrollToTopPending;
+  scrollToTopPending = false;
+  return pending;
 }
 
 /** Go back one screen, or to `fallback` when there is nothing to go back to. */

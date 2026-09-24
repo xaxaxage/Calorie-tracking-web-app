@@ -15,6 +15,7 @@ import { MEAL_LABEL } from '../lib/meals';
 import { finishFlow, href, navigate } from '../lib/router';
 import { LookupError, searchProducts } from '../lib/openfoodfacts';
 import { MealPicker } from '../components/Common';
+import { Crossfade } from '../components/Crossfade';
 import { quip } from '../lib/humor';
 import { aiReady, providerName } from '../lib/ai';
 import { ProviderLine } from '../components/AiProvider';
@@ -221,7 +222,7 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
       <MealPicker value={meal} onChange={setMeal} />
 
       <form
-        class="search describe-field"
+        class={`search describe-field${q ? ' active' : ''}`}
         role="search"
         onSubmit={(e) => {
           e.preventDefault();
@@ -267,6 +268,7 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
         )}
       </form>
 
+      <Crossfade view={q ? 'describe' : 'browse'}>
       {q ? (
         <>
           <section aria-label="Describe" class="stack-10">
@@ -387,6 +389,7 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
           </section>
         </>
       )}
+      </Crossfade>
     </main>
   );
 }

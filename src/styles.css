@@ -106,6 +106,10 @@ html {
      swipe on a computer shouldn't bounce the page or jump back a screen. */
   overflow-x: clip;
   overscroll-behavior-x: none;
+  /* On computers the scrollbar takes space: keep that space whether or not a
+     screen is long enough to scroll, so the column doesn't shift sideways
+     when going between short and long screens. */
+  scrollbar-gutter: stable;
 }
 body {
   margin: 0;
