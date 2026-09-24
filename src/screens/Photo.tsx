@@ -7,7 +7,7 @@ import { quip, useLoadingQuip } from '../lib/humor';
 import { AiError } from '../lib/ai/shared';
 import { ProviderLine, UseGeminiButton } from '../components/AiProvider';
 import { goBack, href } from '../lib/router';
-import { EstimateReview } from '../components/EstimateReview';
+import { EstimateReview, toReviewItem } from '../components/EstimateReview';
 import { Camera, ChevronLeft } from '../components/Icons';
 
 type Phase =
@@ -200,7 +200,7 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
       {done && done.items.length > 0 && (
         <EstimateReview
           key={done.id}
-          items={done.items.map((it) => ({ name: it.name, amount: it.grams, per100: it.per100 }))}
+          items={done.items.map(toReviewItem)}
           meal={meal}
           date={date}
           source="photo"

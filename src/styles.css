@@ -102,6 +102,10 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   background: var(--bg);
+  /* A single column never needs to scroll sideways, and a sideways touchpad
+     swipe on a computer shouldn't bounce the page or jump back a screen. */
+  overflow-x: clip;
+  overscroll-behavior-x: none;
 }
 body {
   margin: 0;
@@ -114,6 +118,8 @@ body {
   line-height: 1.35;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  overflow-x: clip;
 }
 button,
 input,

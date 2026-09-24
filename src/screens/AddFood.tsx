@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Food, MealId } from '../lib/types';
-import { FOODS, searchFoods } from '../lib/foods';
+import { builtinFood, FOODS, searchFoods } from '../lib/foods';
+import { entryFieldsFor } from '../lib/dish';
 import {
   addEntry,
   deleteEntry,
@@ -15,7 +16,7 @@ import { finishFlow, href, navigate } from '../lib/router';
 import { LookupError, searchProducts } from '../lib/openfoodfacts';
 import { MealPicker } from '../components/Common';
 import { quip } from '../lib/humor';
-import { Barcode, Bolt, Camera, Chat, Check, ChevronRight, Close, Copy, Plus, Search } from '../components/Icons';
+import { Barcode, Bolt, Camera, Chat, Check, ChevronRight, Close, Copy, Pencil, Plus, Search } from '../components/Icons';
 
 type Tab = 'recent' | 'favorites';
 
@@ -28,7 +29,8 @@ const onlineCache = new Map<string, Food[]>();
 
 function describe({ food, amount }: Listed): string {
   const kcal = macrosFor(food, amount).kcal;
-  const base = `${fmtGrams(amount)} ${food.unit} · ${fmtKcal(kcal)} kcal`;
+  const parts = food.ingredients?.length ? ` · ${food.ingredients.length} ingredients` : '';
+  const base = `${fmtGrams(amount)} ${food.unit} · ${fmtKcal(kcal)} kcal${parts}`;
   return food.brand ? `${food.brand} · ${base}` : base;
 }
 
@@ -158,16 +160,13 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
       setAdded(next);
       return;
     }
-    const m = macrosFor(item.food, item.amount);
+    // A food from the built-in list is taken as the list has it now (a dish gets its ingredients).
+    const food = (item.food.id.startsWith('db:') && builtinFood(item.food.id)) || item.food;
     const entry = addEntry({
       date,
       meal,
-      name: item.food.name,
-      amount: item.amount,
-      unit: item.food.unit,
-      food: item.food,
-      ...m,
-      source: item.food.id.startsWith('off:') ? 'barcode' : 'food',
+      ...entryFieldsFor(food, item.amount),
+      source: food.id.startsWith('off:') ? 'barcode' : 'food',
     });
     setAdded({ ...added, [key]: entry.id });
   };
@@ -292,6 +291,16 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
             <span class="describe-copy">
               <strong>Describe what you ate</strong>
               <span>“2 eggs, toast with butter and a latte”</span>
+            </span>
+            <ChevronRight size={18} />
+          </a>
+          <a class="describe-row" href={tool('/dish')}>
+            <span class="tile-icon teal">
+              <Pencil />
+            </span>
+            <span class="describe-copy">
+              <strong>Build a dish</strong>
+              <span>Pick the ingredients and how much of each</span>
             </span>
             <ChevronRight size={18} />
           </a>

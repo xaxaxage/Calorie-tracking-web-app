@@ -10,7 +10,8 @@ import { ChevronLeft, Plus, Trash } from '../components/Icons';
 
 function describe(e: Entry): string {
   const amount = e.amount ? `${fmtGrams(e.amount)} ${e.unit ?? 'g'} · ` : '';
-  return `${amount}${fmtKcal(e.kcal)} kcal · P ${Math.round(e.p)} · C ${Math.round(e.c)} · F ${Math.round(e.f)}`;
+  const parts = e.ingredients?.length ? ` · ${e.ingredients.length} ingredients` : '';
+  return `${amount}${fmtKcal(e.kcal)} kcal · P ${Math.round(e.p)} · C ${Math.round(e.c)} · F ${Math.round(e.f)}${parts}`;
 }
 
 export function MealDetail({ meal, date }: { meal: MealId; date: string }) {
@@ -62,7 +63,9 @@ export function MealDetail({ meal, date }: { meal: MealId; date: string }) {
             ))
           )}
         </div>
-        {items.length > 0 && <p class="field-hint">Tap an item to change the amount or move it to another meal.</p>}
+        {items.length > 0 && (
+          <p class="field-hint">Tap an item to change the amount, its ingredients, or the meal it's in.</p>
+        )}
       </main>
 
       <div class="footer">

@@ -4,6 +4,7 @@ import { MEALS } from './types';
 import { builtinFood } from './foods';
 import { isDateKey } from './dates';
 import { cleanCustomTheme, DEFAULT_THEME } from './theme';
+import { cleanIngredients } from './dish';
 
 export const STORAGE_KEY = 'calorie-tracker:v1';
 
@@ -61,6 +62,7 @@ function cleanFood(raw: any): Food | undefined {
       : undefined,
     defaultAmount: num(raw.defaultAmount) > 0 ? num(raw.defaultAmount) : undefined,
     barcode: typeof raw.barcode === 'string' ? raw.barcode : undefined,
+    ingredients: cleanIngredients(raw.ingredients),
   };
 }
 
@@ -82,6 +84,7 @@ function cleanEntry(raw: any): Entry | undefined {
     source: ['food', 'barcode', 'photo', 'text', 'quick', 'copy'].includes(raw.source) ? raw.source : 'quick',
     createdAt: num(raw.createdAt, Date.now()),
     updatedAt: num(raw.updatedAt) > 0 ? num(raw.updatedAt) : undefined,
+    ingredients: cleanIngredients(raw.ingredients),
   };
 }
 

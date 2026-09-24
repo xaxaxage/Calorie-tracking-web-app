@@ -3,10 +3,15 @@
  * back, and a validator that keeps odd model output out of the log.
  */
 
-export interface EstimatedItem {
+export interface EstimatedPart {
   name: string;
   grams: number;
   per100: { kcal: number; p: number; c: number; f: number };
+}
+
+export interface EstimatedItem extends EstimatedPart {
+  /** The main components of a composed dish; the item's grams and nutrition are their sum. */
+  components?: EstimatedPart[];
   /** Position in the photo, 0–1 from the top-left (photo estimates only). */
   x?: number;
   y?: number;
@@ -43,6 +48,18 @@ const itemProperties = {
 
 const baseRequired = ['name', 'grams', 'kcal_per_100g', 'protein_per_100g', 'carbs_per_100g', 'fat_per_100g'] as const;
 
+const components = {
+  type: 'array',
+  description:
+    'For a composed dish, its main components (each with its own grams and nutrition per 100 g, grams adding up to the item). Empty for a single food.',
+  items: {
+    type: 'object',
+    properties: itemProperties,
+    required: [...baseRequired],
+    additionalProperties: false,
+  },
+} as const;
+
 export const PHOTO_SCHEMA = {
   type: 'object',
   properties: {
@@ -52,10 +69,11 @@ export const PHOTO_SCHEMA = {
         type: 'object',
         properties: {
           ...itemProperties,
+          components,
           x: { type: 'number', description: 'Horizontal centre of the item in the photo, 0 = left edge, 1 = right edge.' },
           y: { type: 'number', description: 'Vertical centre of the item in the photo, 0 = top edge, 1 = bottom edge.' },
         },
-        required: [...baseRequired, 'x', 'y'],
+        required: [...baseRequired, 'components', 'x', 'y'],
         additionalProperties: false,
       },
     },
@@ -71,8 +89,8 @@ export const TEXT_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        properties: itemProperties,
-        required: [...baseRequired],
+        properties: { ...itemProperties, components },
+        required: [...baseRequired, 'components'],
         additionalProperties: false,
       },
     },
@@ -81,16 +99,22 @@ export const TEXT_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+const COMPONENTS_HINT = `When an item is a composed dish — a burger, sandwich, wrap, salad, bowl, pasta with sauce, pizza, curry, stir-fry, soup and the like — keep it as one item and also list its main components in "components" (bread, patty, cheese, sauce, oil, rice, vegetables…), each with its own grams and typical nutrition per 100 g, so the grams add up to the item's grams. People adjust these components afterwards, so include hidden calories such as cooking oil, butter, dressing and sauce as their own components. For a single food or a packaged product, leave "components" empty.`;
+
 export const PHOTO_PROMPT = `This photo was taken by someone logging a meal in their calorie tracker. Identify each distinct food or drink in it and estimate how much is there, so they can log it.
 
-For every item give a short, plain name including how it's prepared (like "Chicken thigh, roasted" or "Broccoli, steamed"), its estimated weight in grams, typical nutrition per 100 g for that food as prepared, and where its centre sits in the photo. Use visual cues such as plate size, cutlery and hands to judge portions. Combine mixed dishes into one item when their parts can't be told apart (for example "Lasagna"). Include visible sauces, dressings, oils and drinks when they add meaningful calories.
+For every item give a short, plain name including how it's prepared (like "Chicken thigh, roasted" or "Broccoli, steamed"), its estimated weight in grams, typical nutrition per 100 g for that food as prepared, and where its centre sits in the photo. Use visual cues such as plate size, cutlery and hands to judge portions. Include visible sauces, dressings, oils and drinks when they add meaningful calories.
+
+${COMPONENTS_HINT}
 
 If there is no food or drink in the photo, return an empty list.`;
 
 export function textPrompt(description: string): string {
   return `Someone logging food in their calorie tracker described what they ate. Turn the description into separate items they can log.
 
-For every food or drink give a short, plain name including how it's prepared (like "Scrambled eggs" or "Latte, whole milk"), the amount in grams, and typical nutrition per 100 g for that food as prepared. Use the amounts they give, converting cups, slices, spoons and pieces to grams; where no amount is given, assume one typical portion. For drinks, count 1 ml as 1 g. Keep a named dish or product as one item unless its parts are listed separately.
+For every food or drink give a short, plain name including how it's prepared (like "Scrambled eggs" or "Latte, whole milk"), the amount in grams, and typical nutrition per 100 g for that food as prepared. Use the amounts they give, converting cups, slices, spoons and pieces to grams; where no amount is given, assume one typical portion. For drinks, count 1 ml as 1 g. Keep a named dish or product as one item unless its parts are listed separately; when they describe what's in a dish ("pasta with pesto and chicken"), make it one dish with those components.
+
+${COMPONENTS_HINT}
 
 If the text doesn't describe anything to eat or drink, return an empty list.
 
@@ -105,24 +129,44 @@ const clamp = (v: unknown, lo: number, hi: number, fallback: number) => {
   return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : fallback;
 };
 
+function normalizePart(it: Record<string, unknown>): EstimatedPart {
+  return {
+    name: String(it.name ?? '').trim().slice(0, 80),
+    grams: Math.round(clamp(it.grams, 0, 5000, 0)),
+    per100: {
+      // Pure fat is ~900 kcal per 100 g, so anything above that is a misread.
+      kcal: clamp(it.kcal_per_100g, 0, 900, 0),
+      p: clamp(it.protein_per_100g, 0, 100, 0),
+      c: clamp(it.carbs_per_100g, 0, 100, 0),
+      f: clamp(it.fat_per_100g, 0, 100, 0),
+    },
+  };
+}
+
+const isRecord = (it: unknown): it is Record<string, unknown> => !!it && typeof it === 'object';
+
 /** Validate model output ({ items: [...] }) into items the app can log. */
 export function normalizeItems(raw: unknown, withPosition: boolean): EstimatedItem[] {
   const list = (raw as { items?: unknown })?.items;
   if (!Array.isArray(list)) throw new AiError('The estimate came back in an unexpected format. Try again.');
   return list
-    .filter((it): it is Record<string, unknown> => !!it && typeof it === 'object')
+    .filter(isRecord)
     .map((it) => {
-      const item: EstimatedItem = {
-        name: String(it.name ?? '').trim().slice(0, 80),
-        grams: Math.round(clamp(it.grams, 0, 5000, 0)),
-        per100: {
-          // Pure fat is ~900 kcal per 100 g, so anything above that is a misread.
-          kcal: clamp(it.kcal_per_100g, 0, 900, 0),
-          p: clamp(it.protein_per_100g, 0, 100, 0),
-          c: clamp(it.carbs_per_100g, 0, 100, 0),
-          f: clamp(it.fat_per_100g, 0, 100, 0),
-        },
-      };
+      const item: EstimatedItem = normalizePart(it);
+      const parts = (Array.isArray(it.components) ? it.components : [])
+        .filter(isRecord)
+        .map(normalizePart)
+        .filter((c) => c.name && c.grams > 0)
+        .slice(0, 15);
+      // A dish is the sum of its parts; one part alone is just the food.
+      const grams = parts.reduce((t, c) => t + c.grams, 0);
+      if (parts.length >= 2 && grams > 0) {
+        const per = (k: keyof EstimatedPart['per100']) =>
+          Math.round((parts.reduce((t, c) => t + (c.per100[k] * c.grams) / 100, 0) * 1000) / grams) / 10;
+        item.components = parts;
+        item.grams = grams;
+        item.per100 = { kcal: per('kcal'), p: per('p'), c: per('c'), f: per('f') };
+      }
       if (withPosition) {
         item.x = clamp(it.x, 0, 1, 0.5);
         item.y = clamp(it.y, 0, 1, 0.5);

@@ -1537,3 +1537,200 @@
   margin-top: 0;
   text-align: center;
 }
+
+/* ── Dishes and their ingredients ─────────────────────────────────────── */
+.review-item {
+  display: flex;
+  flex-direction: column;
+}
+.parts-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  min-height: 30px;
+  margin-top: 2px;
+  padding: 0 10px 0 6px;
+  border: none;
+  border-radius: 15px;
+  background: var(--teal-soft);
+  color: var(--teal);
+  font-size: 13px;
+  font-weight: 700;
+}
+.parts-toggle svg {
+  transition: transform 0.15s;
+}
+.parts-toggle[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+.parts {
+  display: flex;
+  flex-direction: column;
+  margin: 0 12px 12px;
+  padding: 4px 0;
+  border-radius: 14px;
+  background: var(--quiet);
+}
+.part-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+}
+.part-row .row-main {
+  min-width: 0;
+}
+.part-name {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.part-row .input-wrap.grams input {
+  width: 76px;
+  height: 38px;
+  font-size: 15px;
+}
+.part-remove {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 18px;
+  background: transparent;
+  color: var(--muted);
+}
+.part-remove:hover {
+  background: var(--sunken);
+  color: var(--protein);
+}
+
+.input.title-input {
+  height: auto;
+  padding: 8px 12px;
+  border-color: transparent;
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.input.title-input:hover {
+  border-color: var(--line-field);
+}
+.input.title-input:focus {
+  background: var(--surface);
+}
+.ing-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 8px 10px 16px;
+}
+.ing-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ing-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.ing-kcal {
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.ing-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 8px;
+}
+.ing-bottom .row-sub {
+  min-width: 0;
+}
+.mini-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.mini-stepper > button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--line-control);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--teal);
+}
+.mini-stepper .input-wrap.grams input {
+  width: 80px;
+  height: 38px;
+  font-size: 15px;
+}
+.picker {
+  gap: 12px;
+}
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.picker .icon-btn {
+  width: 36px;
+  height: 36px;
+}
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: var(--surface);
+  color: var(--teal);
+  text-align: left;
+}
+.pick-row .row-main {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink);
+}
+.mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.mini-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.mini-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.mini-field .input {
+  height: 44px;
+  padding: 0 12px;
+  color: var(--ink);
+}

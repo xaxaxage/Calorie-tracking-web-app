@@ -17,6 +17,9 @@ import { Photo } from './screens/Photo';
 import { Describe } from './screens/Describe';
 import { Settings } from './screens/Settings';
 import { PaletteEditor } from './screens/PaletteEditor';
+import { DishEditor } from './screens/DishEditor';
+import { isDish } from './lib/dish';
+import { builtinFood } from './lib/foods';
 import { ChevronLeft } from './components/Icons';
 
 function Missing({ message }: { message: string }) {
@@ -83,16 +86,31 @@ export function App() {
     case 'food': {
       const food = segments[1] ? findFood(segments[1]) : undefined;
       const amount = Number(query.get('amount'));
-      screen = food ? (
-        <FoodDetail food={food} meal={meal} date={date} amount={amount > 0 ? amount : undefined} />
-      ) : (
-        <Missing message="That food is no longer available." />
+      if (!food) screen = <Missing message="That food is no longer available." />;
+      else if (isDish(food))
+        screen = <DishEditor start={{ kind: 'food', food, amount: amount > 0 ? amount : undefined }} meal={meal} date={date} />;
+      else screen = <FoodDetail food={food} meal={meal} date={date} amount={amount > 0 ? amount : undefined} />;
+      break;
+    }
+    case 'dish': {
+      const from = query.get('from');
+      const food = from ? findFood(from) : undefined;
+      const amount = Number(query.get('amount'));
+      screen = (
+        <DishEditor
+          start={food ? { kind: 'from-food', food, amount: amount > 0 ? amount : food.defaultAmount ?? 100 } : { kind: 'new' }}
+          meal={meal}
+          date={date}
+        />
       );
       break;
     }
     case 'entry': {
       const entry = segments[1] ? getEntry(segments[1]) : undefined;
       if (!entry) screen = <Missing message="That entry was deleted." />;
+      else if (entry.ingredients?.length) screen = <DishEditor start={{ kind: 'entry', entry }} meal={entry.meal} date={entry.date} />;
+      else if ((query.get('dish') === '1' || isDish(builtinFood(entry.food?.id ?? ''))) && entry.food && entry.amount)
+        screen = <DishEditor start={{ kind: 'split-entry', entry }} meal={entry.meal} date={entry.date} />;
       else if (entry.food && entry.amount)
         screen = <FoodDetail food={entry.food} meal={entry.meal} date={entry.date} entry={entry} />;
       else screen = <QuickAdd meal={entry.meal} date={entry.date} entry={entry} />;

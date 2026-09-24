@@ -21,7 +21,7 @@ import {
 } from '../lib/nutrition';
 import { MEAL_LABEL } from '../lib/meals';
 import { todayKey } from '../lib/dates';
-import { finishFlow, goBack, href } from '../lib/router';
+import { finishFlow, goBack, href, navigate } from '../lib/router';
 import { showToast } from '../lib/toast';
 import { toastNote } from '../lib/humor';
 import { MacroLabel, MealPicker, SplitBar } from '../components/Common';
@@ -217,6 +217,19 @@ export function FoodDetail({
             <MealPicker value={meal} onChange={setMeal} />
           </section>
         )}
+
+        <button
+          type="button"
+          class="link-btn left"
+          disabled={amount <= 0}
+          onClick={() =>
+            entry
+              ? navigate(href(`/entry/${encodeURIComponent(entry.id)}`, { dish: '1' }), { replace: true })
+              : navigate(href('/dish', { from: food.id, amount, meal, date }), { replace: true })
+          }
+        >
+          Make it a dish — add ingredients
+        </button>
 
         <div class="strip">
           <span class="strip-label">{date === todayKey() ? 'Left today after this' : 'Left that day after this'}</span>

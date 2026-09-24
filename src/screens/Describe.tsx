@@ -8,7 +8,7 @@ import { useLoadingQuip } from '../lib/humor';
 import { AiError } from '../lib/ai/shared';
 import { ProviderLine, UseGeminiButton } from '../components/AiProvider';
 import { goBack, href, navigate } from '../lib/router';
-import { EstimateReview, type ReviewItem } from '../components/EstimateReview';
+import { EstimateReview, toReviewItem, type ReviewItem } from '../components/EstimateReview';
 import { MealPicker } from '../components/Common';
 import { ChevronLeft } from '../components/Icons';
 
@@ -93,7 +93,7 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
         source,
         id: ++runId,
         unmatched: [],
-        items: items.map((it) => ({ name: it.name, amount: it.grams, per100: it.per100 })),
+        items: items.map(toReviewItem),
       });
     } catch (err) {
       if (controller.signal.aborted) return;

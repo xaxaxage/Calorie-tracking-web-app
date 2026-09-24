@@ -20,6 +20,17 @@ export interface Serving {
   amount: number;
 }
 
+/** One part of a dish — "Rice, cooked, 200 g" — that can be changed on its own. */
+export interface Ingredient {
+  id: string;
+  name: string;
+  amount: number;
+  unit: Unit;
+  per100: Macros;
+  /** The food it was picked from, if any. */
+  foodId?: string;
+}
+
 /** A food with its nutrition per 100 g (or 100 ml). */
 export interface Food {
   id: string;
@@ -31,6 +42,11 @@ export interface Food {
   /** Amount suggested when the food is first picked. */
   defaultAmount?: number;
   barcode?: string;
+  /**
+   * Set when the food is a dish: its parts for `defaultAmount`. per100 is
+   * worked out from them.
+   */
+  ingredients?: Ingredient[];
 }
 
 export type EntrySource = 'food' | 'barcode' | 'photo' | 'text' | 'quick' | 'copy';
@@ -55,6 +71,8 @@ export interface Entry {
   createdAt: number;
   /** Last change, for merging between devices. Missing on entries never edited (use createdAt). */
   updatedAt?: number;
+  /** What's in this portion of a dish; the entry's totals are their sum. */
+  ingredients?: Ingredient[];
 }
 
 export interface Goals extends Macros {}

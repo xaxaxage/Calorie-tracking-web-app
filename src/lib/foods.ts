@@ -1,4 +1,5 @@
-import type { Food, Serving, Unit } from './types';
+import type { Food, Ingredient, Serving, Unit } from './types';
+import { dishFood } from './dish';
 
 /**
  * Built-in food list. Values are per 100 g (or 100 ml for drinks) and are
@@ -36,12 +37,16 @@ const ROWS: Row[] = [
   ['pancakes', 'Pancakes', 'g', 227, 6.4, 28, 9.7, [s('1 pancake', 50), s('3 pancakes', 150)], 150],
   ['tortilla-wheat', 'Flour tortilla', 'g', 306, 8.2, 50, 7.8, [s('1 tortilla', 45)], 45, 'wrap'],
   ['rice-cakes', 'Rice cakes', 'g', 387, 8.2, 81.5, 2.8, [s('1 cake', 9)], 18],
+  ['burger-bun', 'Burger bun', 'g', 279, 9.5, 49, 4.5, [s('1 bun', 50)], 50],
+  ['pizza-base', 'Pizza base, baked', 'g', 280, 9, 52, 4, [s('½ pizza', 120)], 120, 'dough crust'],
+  ['croutons', 'Croutons', 'g', 407, 11.9, 73.5, 6.6, [s('1 handful', 15)], 15],
 
   // Grains, pasta, potatoes
   ['pasta-wholegrain-cooked', 'Wholegrain pasta, cooked', 'g', 149, 6, 30, 1.7, [s('1 cup', 140)], 180, 'spaghetti penne wholewheat'],
   ['pasta-cooked', 'Pasta, cooked', 'g', 158, 5.8, 30.9, 0.9, [s('1 cup', 140)], 180, 'spaghetti penne macaroni'],
   ['rice-white-cooked', 'White rice, cooked', 'g', 130, 2.7, 28.2, 0.3, [s('1 cup', 158)], 150, 'basmati jasmine'],
   ['rice-brown-cooked', 'Brown rice, cooked', 'g', 123, 2.7, 25.6, 1, [s('1 cup', 195)], 150],
+  ['sushi-rice', 'Sushi rice, seasoned', 'g', 150, 2.6, 33, 0.3, [s('1 portion', 150)], 150],
   ['fried-rice', 'Fried rice', 'g', 168, 4.5, 24.8, 5.6, [s('1 portion', 250)], 250],
   ['quinoa-cooked', 'Quinoa, cooked', 'g', 120, 4.4, 21.3, 1.9, [s('1 cup', 185)], 150],
   ['couscous-cooked', 'Couscous, cooked', 'g', 112, 3.8, 23.2, 0.2, [s('1 cup', 157)], 150],
@@ -57,6 +62,7 @@ const ROWS: Row[] = [
   ['chicken-nuggets', 'Chicken nuggets', 'g', 296, 15.8, 16.7, 18.8, [s('6 pieces', 96)], 96],
   ['turkey-breast', 'Turkey breast, roasted', 'g', 135, 30, 0, 1, [s('1 portion', 100)], 100],
   ['beef-mince-cooked', 'Beef mince (10% fat), cooked', 'g', 217, 26, 0, 12.5, [s('1 portion', 125)], 125, 'ground beef'],
+  ['beef-patty', 'Beef patty, grilled', 'g', 254, 26, 0, 17, [s('1 patty', 90)], 90, 'burger hamburger'],
   ['steak', 'Beef steak, grilled', 'g', 206, 29, 0, 9.6, [s('1 steak', 200)], 200, 'sirloin'],
   ['pork-chop', 'Pork chop, grilled', 'g', 231, 27.3, 0, 12.8, [s('1 chop', 150)], 150],
   ['bacon', 'Bacon, fried', 'g', 541, 37, 1.4, 42, [s('1 slice', 8), s('3 slices', 24)], 24],
@@ -145,6 +151,12 @@ const ROWS: Row[] = [
   ['olive-oil', 'Olive oil', 'g', 884, 0, 0, 100, [s('1 tsp', 5), s('1 tbsp', 14)], 14],
   ['mayonnaise', 'Mayonnaise', 'g', 680, 1, 0.6, 75, [s('1 tbsp', 14)], 14, 'mayo'],
   ['ketchup', 'Ketchup', 'g', 101, 1, 27.4, 0.1, [s('1 tbsp', 17)], 17],
+  ['tomato-sauce', 'Tomato sauce', 'g', 45, 1.6, 7, 1.3, [s('1 ladle', 100)], 100, 'marinara passata pasta sauce'],
+  ['bechamel', 'Béchamel sauce', 'g', 130, 4, 9, 8.7, [s('1 ladle', 60)], 60, 'white sauce bechamel'],
+  ['curry-sauce', 'Curry sauce', 'g', 95, 1.8, 8, 6.3, [s('1 portion', 150)], 150],
+  ['caesar-dressing', 'Caesar dressing', 'g', 450, 2.5, 4, 47, [s('1 tbsp', 15)], 30],
+  ['salsa', 'Salsa', 'g', 36, 1.5, 7, 0.2, [s('1 tbsp', 16)], 30],
+  ['vegetable-stock', 'Vegetable stock', 'ml', 6, 0.3, 1, 0.1, [s('1 cup', 240)], 240, 'broth bouillon'],
   ['dark-chocolate', 'Dark chocolate 70%', 'g', 598, 7.8, 45.9, 42.6, [s('2 squares', 20)], 20],
   ['milk-chocolate', 'Milk chocolate', 'g', 535, 7.7, 59.4, 29.7, [s('1 bar', 45)], 45],
   ['crisps', 'Potato chips', 'g', 536, 7, 53, 35, [s('1 small bag', 30)], 30, 'crisps'],
@@ -178,7 +190,27 @@ const ROWS: Row[] = [
   ['wine-white', 'White wine', 'ml', 82, 0.1, 2.6, 0, [s('1 glass', 150)], 150],
 ];
 
-export const FOODS: Food[] = ROWS.map(([slug, name, unit, kcal, p, c, f, servings, defaultAmount]) => ({
+/** Built-in dishes: what's in one default portion, as amounts of other foods on the list. */
+const RECIPES: Record<string, [slug: string, amount: number][]> = {
+  'oatmeal-milk': [['oats-rolled', 55], ['milk-whole', 195]],
+  'fried-rice': [['rice-white-cooked', 170], ['egg-fried', 35], ['peas', 20], ['carrot', 15], ['olive-oil', 10]],
+  'chicken-rice-bowl': [['chicken-breast-grilled', 120], ['rice-white-cooked', 210], ['broccoli-steamed', 70], ['bell-pepper', 42], ['olive-oil', 8]],
+  pizza: [['pizza-base', 120], ['tomato-sauce', 40], ['mozzarella', 60]],
+  cheeseburger: [['burger-bun', 50], ['beef-patty', 45], ['cheddar', 12], ['ketchup', 8]],
+  lasagna: [['pasta-cooked', 80], ['beef-mince-cooked', 50], ['tomato-sauce', 60], ['bechamel', 50], ['parmesan', 10]],
+  'spaghetti-bolognese': [['pasta-cooked', 170], ['beef-mince-cooked', 55], ['tomato-sauce', 120], ['parmesan', 5]],
+  'chicken-curry': [['chicken-thigh-roasted', 110], ['curry-sauce', 160], ['onion', 30]],
+  'caesar-salad': [['salad-leaves', 150], ['chicken-breast-grilled', 90], ['caesar-dressing', 30], ['croutons', 20], ['parmesan', 10]],
+  sushi: [['sushi-rice', 170], ['salmon-baked', 35], ['avocado', 20], ['cucumber', 15]],
+  burrito: [['tortilla-wheat', 90], ['chicken-breast-grilled', 90], ['rice-white-cooked', 80], ['black-beans-cooked', 40], ['cheddar', 15], ['salsa', 35]],
+  'sandwich-ham-cheese': [['bread-white', 80], ['ham', 45], ['cheddar', 20], ['butter', 5]],
+  'vegetable-soup': [['vegetable-stock', 150], ['carrot', 40], ['potato-boiled', 50], ['onion', 20], ['tomato', 30], ['peas', 8], ['olive-oil', 2]],
+  latte: [['milk-2', 280], ['coffee', 70]],
+  cappuccino: [['milk-whole', 140], ['coffee', 100]],
+  smoothie: [['banana', 80], ['strawberries', 70], ['orange-juice', 100]],
+};
+
+const PLAIN: Food[] = ROWS.map(([slug, name, unit, kcal, p, c, f, servings, defaultAmount]) => ({
   id: `db:${slug}`,
   name,
   unit,
@@ -186,6 +218,23 @@ export const FOODS: Food[] = ROWS.map(([slug, name, unit, kcal, p, c, f, serving
   servings,
   defaultAmount: defaultAmount ?? servings[0]?.amount ?? 100,
 }));
+
+const plainById = new Map(PLAIN.map((f) => [f.id, f]));
+
+/** Typical values as listed, before dishes are worked out from their recipes (for tests). */
+export const LISTED = PLAIN;
+
+export const FOODS: Food[] = PLAIN.map((food) => {
+  const recipe = RECIPES[food.id.slice(3)];
+  if (!recipe) return food;
+  const ingredients: Ingredient[] = recipe.map(([slug, amount]) => {
+    const part = plainById.get(`db:${slug}`);
+    if (!part) throw new Error(`Recipe for ${food.id} uses unknown food ${slug}`);
+    return { id: slug, name: part.name, amount, unit: part.unit, per100: { ...part.per100 }, foodId: part.id };
+  });
+  // Keep the dish's own unit (a smoothie is still poured in ml).
+  return { ...dishFood(food.id, food.name, ingredients, food.servings), unit: food.unit };
+});
 
 const KEYWORDS = new Map(ROWS.map((r) => [`db:${r[0]}`, (r[9] ?? '').toLowerCase()]));
 

@@ -84,7 +84,8 @@ const isGemma = (model: string) => /^gemma-/i.test(model);
 
 function jsonShape(photo: boolean): string {
   const pos = photo ? ', "x": 0.5, "y": 0.5' : '';
-  return `\n\nReply with JSON only — no other text — in exactly this shape:\n{"items": [{"name": "…", "grams": 0, "kcal_per_100g": 0, "protein_per_100g": 0, "carbs_per_100g": 0, "fat_per_100g": 0${pos}}]}`;
+  const food = '"name": "…", "grams": 0, "kcal_per_100g": 0, "protein_per_100g": 0, "carbs_per_100g": 0, "fat_per_100g": 0';
+  return `\n\nReply with JSON only — no other text — in exactly this shape ("components" may be empty):\n{"items": [{${food}, "components": [{${food}}]${pos}}]}`;
 }
 
 async function callModel(ai: GoogleGenAI, model: string, input: EstimateInput, signal?: AbortSignal) {

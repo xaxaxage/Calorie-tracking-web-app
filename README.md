@@ -22,6 +22,12 @@ barcode scanner, photo estimate and quick add.
   estimates any food or dish, amounts included.
 - **Photo estimate** – snap your plate; the AI identifies each item and estimates its weight and
   nutrition. Adjust the grams, then add everything at once. Needs an AI key (a free Gemini key works).
+- **Dishes with ingredients** – a dish (pizza, burrito, a bowl, your own recipe) is made of ingredients you
+  control: change any amount with ± or by typing, remove one (with undo), add one from the food list, Open Food
+  Facts or as a custom item, or scale the whole portion (½×, 2×, "1 slice"…). Nutrition is always the sum of the
+  ingredients. Built-in dishes come with a recipe, the AI splits composed dishes into their components, **Build a
+  dish** starts from scratch, and any logged food can become a dish with **Make it a dish**. Star a dish to reuse
+  it from Favorites.
 - **Quick add** – just calories (and optionally macros), with a hint when the macros don't add up.
 - **Copy meal** – copy any meal from the last two weeks into another meal or day.
 - **Edit** – open a meal to change an item's amount, move it to another meal, or delete it (with undo).
@@ -137,7 +143,8 @@ There is no server and no account. Everything lives in the browser storage (`loc
 your phone, as one JSON record under the key `calorie-tracker:v1`:
 
 - **entries** – one per logged item: day, meal, name, amount, calories and macros, plus a copy of the food's
-  per-100 g values so the portion can be edited later
+  per-100 g values so the portion can be edited later, and for a dish its ingredients (name, amount, per-100 g
+  values each)
 - **favorites** – foods you starred
 - **settings** – daily goals, which AI to use, your API keys, palette and humor mode
 
