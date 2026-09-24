@@ -224,6 +224,7 @@ export function Settings() {
       </section>
 
       {footerQuip && <p class="quip center">{footerQuip}</p>}
+      <p class="app-version">Version {__APP_VERSION__}</p>
     </main>
   );
 }
