@@ -218,6 +218,7 @@ export function FoodDetail({
           </section>
         )}
 
+        {data.settings.dishBuilder && (
         <button
           type="button"
           class="link-btn left"
@@ -230,6 +231,7 @@ export function FoodDetail({
         >
           Make it a dish — add ingredients
         </button>
+        )}
 
         <div class="strip">
           <span class="strip-label">{date === todayKey() ? 'Left today after this' : 'Left that day after this'}</span>

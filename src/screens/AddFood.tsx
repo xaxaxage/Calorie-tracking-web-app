@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Food, MealId } from '../lib/types';
 import { builtinFood, FOODS, searchFoods } from '../lib/foods';
 import { entryFieldsFor } from '../lib/dish';
@@ -16,7 +16,9 @@ import { finishFlow, href, navigate } from '../lib/router';
 import { LookupError, searchProducts } from '../lib/openfoodfacts';
 import { MealPicker } from '../components/Common';
 import { quip } from '../lib/humor';
-import { Barcode, Bolt, Camera, Chat, Check, ChevronRight, Close, Copy, Pencil, Plus, Search } from '../components/Icons';
+import { aiReady, providerName } from '../lib/ai';
+import { ProviderLine } from '../components/AiProvider';
+import { Barcode, Bolt, Camera, Chat, Check, ChevronRight, Close, Copy, Pencil, Plus } from '../components/Icons';
 
 type Tab = 'recent' | 'favorites';
 
@@ -79,7 +81,8 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
   const [added, setAdded] = useState<Record<string, string>>({});
   const [online, setOnline] = useState<Online>({ state: 'idle' });
   const [retry, setRetry] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const ready = aiReady(data.settings);
 
   // Keep search and tab in the URL so coming back from a food restores them.
   useEffect(() => {
@@ -104,8 +107,11 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
     }));
   }, [q, recent, data.favorites]);
 
+  // Look products up online only for a short name, not for a whole described meal.
+  const searchable = q.length >= 3 && q.split(/\s+/).length <= 4 && !/[,;\n]/.test(q);
+
   useEffect(() => {
-    if (q.length < 3) {
+    if (!searchable) {
       setOnline({ state: 'idle' });
       return;
     }
@@ -135,7 +141,7 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
       clearTimeout(timer);
       controller.abort();
     };
-  }, [q, retry]);
+  }, [q, retry, searchable]);
 
   const localIds = new Set(localResults.map((r) => r.food.id));
   const onlineResults: Listed[] =
@@ -191,6 +197,17 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
 
   const tool = (path: string) => `#${href(path, { meal, date })}`;
 
+  /** Open the describe screen already estimating (or matching) what was typed. */
+  const describe = (run: 'ai' | 'list') => navigate(href('/describe', { meal, date, text: q, run }));
+
+  // The field grows with what's typed, so a whole meal stays readable.
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight + 3}px`;
+  }, [query]);
+
   return (
     <main class="screen gap-16">
       <header class="topbar">
@@ -204,36 +221,42 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
       <MealPicker value={meal} onChange={setMeal} />
 
       <form
-        class="search"
+        class="search describe-field"
         role="search"
         onSubmit={(e) => {
           e.preventDefault();
-          inputRef.current?.blur();
+          if (q) describe(ready ? 'ai' : 'list');
         }}
       >
         <label for="food-search" class="sr-only">
-          Search foods
+          Describe what you ate, or search for a food
         </label>
         <span class="search-icon">
-          <Search />
+          <Chat />
         </span>
-        <input
+        <textarea
           ref={inputRef}
           id="food-search"
-          type="search"
-          inputMode="search"
-          enterKeyHint="search"
+          rows={1}
+          maxLength={2000}
+          enterkeyhint="go"
           autoComplete="off"
-          autoCorrect="off"
-          placeholder="Search foods or brands"
+          placeholder="Describe what you ate, or search"
           value={query}
-          onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+          onInput={(e) => setQuery((e.target as HTMLTextAreaElement).value)}
+          onKeyDown={(e) => {
+            // Return starts the estimate; Shift+Return still makes a new line.
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+              e.preventDefault();
+              if (q) describe(ready ? 'ai' : 'list');
+            }
+          }}
         />
         {query && (
           <button
             type="button"
             class="search-clear"
-            aria-label="Clear search"
+            aria-label="Clear"
             onClick={() => {
               setQuery('');
               inputRef.current?.focus();
@@ -245,9 +268,38 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
       </form>
 
       {q ? (
+        <>
+          <section aria-label="Describe" class="stack-10">
+            {ready ? (
+              <>
+                <button type="button" class="btn-primary" onClick={() => describe('ai')}>
+                  Estimate with {providerName(data.settings)}
+                </button>
+                <button type="button" class="btn-secondary" onClick={() => describe('list')}>
+                  Match from food list (offline)
+                </button>
+                <ProviderLine />
+              </>
+            ) : (
+              <>
+                <button type="button" class="btn-primary" onClick={() => describe('list')}>
+                  Match from food list
+                </button>
+                <p class="field-hint">
+                  Matches your words to the food list, free and offline. For estimates of any food or dish,{' '}
+                  <a href="#/settings">add a free Gemini key in Settings</a>.
+                </p>
+              </>
+            )}
+          </section>
         <section aria-label="Search results" class="stack-10">
-          <div class="list">{renderList(localResults, `No foods in the list match “${q}”.`, quip('noResults', q))}</div>
-          {q.length >= 3 && (
+          {(localResults.length > 0 || searchable) && (
+            <>
+              <h2 class="list-section-label">Or pick one food</h2>
+              <div class="list">{renderList(localResults, `No foods in the list match “${q}”.`, quip('noResults', q))}</div>
+            </>
+          )}
+          {searchable && (
             <>
               <h2 class="list-section-label">From Open Food Facts</h2>
               <div class="list">
@@ -268,32 +320,18 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
               </div>
             </>
           )}
-          <a class="describe-row" href={`#${href('/describe', { meal, date, text: q })}`}>
-            <span class="tile-icon green">
-              <Chat />
-            </span>
-            <span class="describe-copy">
-              <strong>Describe “{q}”</strong>
-              <span>Log it from a plain-text description</span>
-            </span>
-            <ChevronRight size={18} />
-          </a>
           <a class="quick-hint" href={tool('/quick')}>
             Can't find it? <strong>Quick add calories</strong>
           </a>
         </section>
+        </>
       ) : (
         <>
-          <a class="describe-row" href={tool('/describe')}>
-            <span class="tile-icon green">
-              <Chat />
-            </span>
-            <span class="describe-copy">
-              <strong>Describe what you ate</strong>
-              <span>“2 eggs, toast with butter and a latte”</span>
-            </span>
-            <ChevronRight size={18} />
-          </a>
+          <p class="field-hint describe-hint">
+            Type what you ate, like “2 eggs, toast with butter and a latte”, or the name of one food. To talk instead,
+            tap the microphone on your keyboard.
+          </p>
+          {data.settings.dishBuilder && (
           <a class="describe-row" href={tool('/dish')}>
             <span class="tile-icon teal">
               <Pencil />
@@ -304,6 +342,7 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
             </span>
             <ChevronRight size={18} />
           </a>
+          )}
 
           <div class="tiles">
             <a href={tool('/scan')} class="tile">

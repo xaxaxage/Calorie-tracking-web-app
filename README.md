@@ -10,16 +10,18 @@ barcode scanner, photo estimate and quick add.
   through previous days with the arrows.
 - **History** – week chart against your goal (under = teal, over = orange), daily average, average macros,
   and a list of days you can open.
-- **Add food** – pick the meal, search ~140 built-in foods plus millions of products from
-  [Open Food Facts](https://world.openfoodfacts.org), or add from **Recent** and **Favorites** with one tap
-  (tap again to undo).
+- **Add food** – pick the meal and start typing: one field takes a whole meal ("2 eggs, toast with butter and
+  a latte") or the name of one food. As soon as you type, the page becomes the describe menu — **Estimate with
+  Gemini** (or press Return) and **Match from food list** — with matching foods from ~140 built-in ones and
+  millions of [Open Food Facts](https://world.openfoodfacts.org) products below it for single foods. Or add from
+  **Recent** and **Favorites** with one tap (tap again to undo).
 - **Portion** – grams/ml with ±buttons, serving presets, live calories and macros, "left today after this",
   star to save as a favorite.
 - **Barcode** – scans EAN/UPC codes with the camera (works on iPhone through a bundled WebAssembly
   decoder), or type the number. Products are looked up on Open Food Facts.
-- **Describe** – type (or dictate) what you ate, e.g. "2 eggs, a slice of toast with butter and a latte".
-  Without any key it matches your words to the food list — free and offline. With an AI key, the AI
-  estimates any food or dish, amounts included.
+- **Describe** – type (or dictate) what you ate right in Add food, e.g. "2 eggs, a slice of toast with butter
+  and a latte". Without any key it matches your words to the food list — free and offline. With an AI key, the
+  AI estimates any food or dish, amounts included.
 - **Photo estimate** – snap your plate; the AI identifies each item and estimates its weight and
   nutrition. Adjust the grams, then add everything at once. Needs an AI key (a free Gemini key works).
 - **Dishes with ingredients** – a dish (pizza, burrito, a bowl, your own recipe) is made of ingredients you
@@ -27,7 +29,7 @@ barcode scanner, photo estimate and quick add.
   Facts or as a custom item, or scale the whole portion (½×, 2×, "1 slice"…). Nutrition is always the sum of the
   ingredients. Built-in dishes come with a recipe, the AI splits composed dishes into their components, **Build a
   dish** starts from scratch, and any logged food can become a dish with **Make it a dish**. Star a dish to reuse
-  it from Favorites.
+  it from Favorites. Don't want to build your own? **Settings → Logging → Build your own dishes** hides both.
 - **Quick add** – just calories (and optionally macros), with a hint when the macros don't add up.
 - **Copy meal** – copy any meal from the last two weeks into another meal or day.
 - **Edit** – open a meal to change an item's amount, move it to another meal, or delete it (with undo).

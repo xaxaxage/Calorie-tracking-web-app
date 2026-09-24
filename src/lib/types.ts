@@ -104,6 +104,8 @@ export interface Settings {
   customThemes: CustomTheme[];
   /** Playful remarks here and there. */
   humor: boolean;
+  /** Show "Build a dish" and "Make it a dish" for making your own dishes. */
+  dishBuilder: boolean;
 }
 
 /** The colors a palette is built from, as #rrggbb. */

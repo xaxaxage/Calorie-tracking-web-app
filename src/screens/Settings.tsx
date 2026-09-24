@@ -159,6 +159,8 @@ export function Settings() {
         </button>
       </section>
 
+      <LoggingSettings />
+
       <AppearanceSettings />
 
       <AiSettings />
@@ -223,6 +225,34 @@ export function Settings() {
 
       {footerQuip && <p class="quip center">{footerQuip}</p>}
     </main>
+  );
+}
+
+function LoggingSettings() {
+  const { settings } = useData();
+  return (
+    <section class="card stack-12" aria-labelledby="logging-title">
+      <h2 id="logging-title" class="section-title">
+        Logging
+      </h2>
+      <label class="toggle-row switch-row">
+        <input
+          type="checkbox"
+          role="switch"
+          class="switch"
+          id="dish-builder"
+          checked={settings.dishBuilder}
+          onChange={(e) => updateSettings({ dishBuilder: (e.target as HTMLInputElement).checked })}
+        />
+        <span>
+          <strong>Build your own dishes</strong>
+          <span class="muted">
+            Shows “Build a dish” on Add food and “Make it a dish” on foods. Dishes from the AI and the food list keep their
+            ingredients either way.
+          </span>
+        </span>
+      </label>
+    </section>
   );
 }
 

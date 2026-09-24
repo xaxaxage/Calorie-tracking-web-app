@@ -400,6 +400,30 @@
 .search input:focus {
   box-shadow: 0 0 0 1px var(--teal);
 }
+/* Add food: one field to describe a meal or search for a food; grows as you type. */
+.search textarea {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  max-height: 40vh;
+  padding: 14px 48px 13px 46px;
+  border-radius: 16px;
+  border: 1.5px solid var(--teal);
+  background: var(--surface);
+  font-size: 16px;
+  line-height: 1.4;
+  resize: none;
+  overflow-y: auto;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.search textarea:focus {
+  box-shadow: 0 0 0 1px var(--teal);
+}
+.describe-hint {
+  margin-top: -6px;
+}
 .search-icon {
   position: absolute;
   left: 16px;

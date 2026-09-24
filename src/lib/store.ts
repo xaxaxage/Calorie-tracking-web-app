@@ -40,6 +40,7 @@ export function emptyData(): AppData {
       theme: DEFAULT_THEME,
       customThemes: [],
       humor: true,
+      dishBuilder: true,
     },
   };
 }
@@ -164,6 +165,7 @@ export function parseData(raw: unknown): AppData {
         ? r.settings.customThemes.map(cleanCustomTheme).filter(Boolean).slice(0, MAX_CUSTOM_THEMES)
         : [],
       humor: r.settings?.humor !== false,
+      dishBuilder: r.settings?.dishBuilder !== false,
     },
   };
 }

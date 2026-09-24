@@ -87,6 +87,7 @@ export function AppearanceSettings() {
           type="checkbox"
           role="switch"
           class="switch"
+          id="humor-switch"
           checked={humor}
           onChange={(e) => updateSettings({ humor: (e.target as HTMLInputElement).checked })}
         />

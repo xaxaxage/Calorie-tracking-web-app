@@ -21,7 +21,18 @@ let runId = 0;
 
 const EXAMPLE = 'e.g. 2 scrambled eggs, a slice of wholemeal toast with butter and a latte';
 
-export function Describe({ meal, date, initialText }: { meal: MealId; date: string; initialText: string }) {
+export function Describe({
+  meal,
+  date,
+  initialText,
+  autoRun,
+}: {
+  meal: MealId;
+  date: string;
+  initialText: string;
+  /** Start straight away (from typing on Add food): estimate with the AI, or match the food list. */
+  autoRun?: 'ai' | 'list';
+}) {
   const data = useData();
   const settings = data.settings;
   const ready = aiReady(settings);
@@ -105,6 +116,14 @@ export function Describe({ meal, date, initialText }: { meal: MealId; date: stri
       });
     }
   };
+
+  // Arriving from Add food with the text already typed: no second tap needed.
+  useEffect(() => {
+    if (!trimmed || !autoRun) return;
+    if (autoRun === 'ai' && ready) askAi();
+    else matchFromList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const done = phase.state === 'done' ? phase : undefined;
 

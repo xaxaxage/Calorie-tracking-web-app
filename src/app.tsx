@@ -134,7 +134,14 @@ export function App() {
       screen = <Photo meal={meal} date={date} />;
       break;
     case 'describe':
-      screen = <Describe meal={meal} date={date} initialText={query.get('text') ?? ''} />;
+      screen = (
+        <Describe
+          meal={meal}
+          date={date}
+          initialText={query.get('text') ?? ''}
+          autoRun={query.get('run') === 'ai' ? 'ai' : query.get('run') === 'list' ? 'list' : undefined}
+        />
+      );
       break;
     case 'settings':
       screen = <Settings />;
