@@ -8,6 +8,7 @@ import {
   PHOTO_SCHEMA,
   TEXT_SCHEMA,
   textPrompt,
+  withPropertyOrdering,
   type EstimatedItem,
   type EstimateInput,
 } from './shared';
@@ -79,13 +80,17 @@ const wait = (ms: number, signal?: AbortSignal) =>
     );
   });
 
+// The schemas with an explicit field order, which Gemini keeps.
+const PHOTO_JSON_SCHEMA = withPropertyOrdering(PHOTO_SCHEMA);
+const TEXT_JSON_SCHEMA = withPropertyOrdering(TEXT_SCHEMA);
+
 /** Gemma models on the Gemini API don't take a JSON schema, so ask for JSON in the prompt instead. */
 const isGemma = (model: string) => /^gemma-/i.test(model);
 
 function jsonShape(photo: boolean): string {
   const pos = photo ? ', "x": 0.5, "y": 0.5' : '';
-  const food = '"name": "…", "grams": 0, "kcal_per_100g": 0, "protein_per_100g": 0, "carbs_per_100g": 0, "fat_per_100g": 0';
-  return `\n\nReply with JSON only — no other text — in exactly this shape ("components" may be empty):\n{"items": [{${food}, "components": [{${food}}]${pos}}]}`;
+  const amounts = '"grams": 0, "kcal_per_100g": 0, "protein_per_100g": 0, "carbs_per_100g": 0, "fat_per_100g": 0';
+  return `\n\nReply with JSON only — no other text — in exactly this shape ("components" may be empty):\n{"items": [{"name": "…", "components": [{"name": "…", ${amounts}}], ${amounts}${pos}}]}`;
 }
 
 async function callModel(ai: GoogleGenAI, model: string, input: EstimateInput, signal?: AbortSignal) {
@@ -101,7 +106,7 @@ async function callModel(ai: GoogleGenAI, model: string, input: EstimateInput, s
     config: {
       ...(isGemma(model)
         ? {}
-        : { responseMimeType: 'application/json', responseJsonSchema: photo ? PHOTO_SCHEMA : TEXT_SCHEMA }),
+        : { responseMimeType: 'application/json', responseJsonSchema: photo ? PHOTO_JSON_SCHEMA : TEXT_JSON_SCHEMA }),
       abortSignal: signal,
       httpOptions: { timeout: 90_000 },
     },

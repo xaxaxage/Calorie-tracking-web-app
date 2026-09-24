@@ -37,73 +37,87 @@ export class AiError extends Error {
   }
 }
 
-const itemProperties = {
-  name: { type: 'string', description: 'Short food name with preparation, e.g. "White rice, cooked".' },
-  grams: { type: 'number', description: 'Amount of this item in grams (for drinks, 1 ml counts as 1 g).' },
+const nutrition = {
+  grams: { type: 'number', description: 'Amount in grams (for drinks, 1 ml counts as 1 g).' },
   kcal_per_100g: { type: 'number' },
   protein_per_100g: { type: 'number' },
   carbs_per_100g: { type: 'number' },
   fat_per_100g: { type: 'number' },
 } as const;
 
-const baseRequired = ['name', 'grams', 'kcal_per_100g', 'protein_per_100g', 'carbs_per_100g', 'fat_per_100g'] as const;
+const nutritionKeys = ['grams', 'kcal_per_100g', 'protein_per_100g', 'carbs_per_100g', 'fat_per_100g'] as const;
+
+const name = { type: 'string', description: 'Short food name with preparation, e.g. "White rice, cooked".' } as const;
 
 const components = {
   type: 'array',
-  description:
-    'For a composed dish, its main components (each with its own grams and nutrition per 100 g, grams adding up to the item). Empty for a single food.',
+  description: 'For a composed dish, its main components, each with its own grams and nutrition per 100 g. Empty for a single food.',
   items: {
     type: 'object',
-    properties: itemProperties,
-    required: [...baseRequired],
+    properties: { name, ...nutrition },
+    required: ['name', ...nutritionKeys],
     additionalProperties: false,
   },
 } as const;
 
-export const PHOTO_SCHEMA = {
-  type: 'object',
-  properties: {
-    items: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          ...itemProperties,
-          components,
-          x: { type: 'number', description: 'Horizontal centre of the item in the photo, 0 = left edge, 1 = right edge.' },
-          y: { type: 'number', description: 'Vertical centre of the item in the photo, 0 = top edge, 1 = bottom edge.' },
-        },
-        required: [...baseRequired, 'components', 'x', 'y'],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ['items'],
-  additionalProperties: false,
-} as const;
+/*
+ * Models write JSON front to back, so the order of fields is the order of
+ * thought: name the food, then (for a dish) its components, and only then
+ * the item's total amount and nutrition — rather than committing to a total
+ * first and bending the components to fit it.
+ */
+function itemSchema(photo: boolean) {
+  const position = {
+    x: { type: 'number', description: 'Horizontal centre of the item in the photo, 0 = left edge, 1 = right edge.' },
+    y: { type: 'number', description: 'Vertical centre of the item in the photo, 0 = top edge, 1 = bottom edge.' },
+  } as const;
+  return {
+    type: 'object',
+    properties: { name, components, ...nutrition, ...(photo ? position : {}) },
+    required: ['name', 'components', ...nutritionKeys, ...(photo ? ['x', 'y'] : [])],
+    additionalProperties: false,
+  } as const;
+}
 
-export const TEXT_SCHEMA = {
-  type: 'object',
-  properties: {
-    items: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: { ...itemProperties, components },
-        required: [...baseRequired, 'components'],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ['items'],
-  additionalProperties: false,
-} as const;
+const listSchema = (photo: boolean) =>
+  ({
+    type: 'object',
+    properties: { items: { type: 'array', items: itemSchema(photo) } },
+    required: ['items'],
+    additionalProperties: false,
+  }) as const;
 
-const COMPONENTS_HINT = `When an item is a composed dish — a burger, sandwich, wrap, salad, bowl, pasta with sauce, pizza, curry, stir-fry, soup and the like — keep it as one item and also list its main components in "components" (bread, patty, cheese, sauce, oil, rice, vegetables…), each with its own grams and typical nutrition per 100 g, so the grams add up to the item's grams. People adjust these components afterwards, so include hidden calories such as cooking oil, butter, dressing and sauce as their own components. For a single food or a packaged product, leave "components" empty.`;
+export const PHOTO_SCHEMA = listSchema(true);
+export const TEXT_SCHEMA = listSchema(false);
+
+/**
+ * Gemini also takes an explicit field order; it's added only for Gemini, as
+ * `propertyOrdering` isn't standard JSON Schema.
+ */
+export function withPropertyOrdering(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(withPropertyOrdering);
+  if (!schema || typeof schema !== 'object') return schema;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(schema)) out[k] = k === 'properties' ? mapValues(v, withPropertyOrdering) : withPropertyOrdering(v);
+  const props = (schema as { properties?: Record<string, unknown> }).properties;
+  if (props) out.propertyOrdering = Object.keys(props);
+  return out;
+}
+
+const mapValues = (o: unknown, f: (v: unknown) => unknown) =>
+  Object.fromEntries(Object.entries(o as Record<string, unknown>).map(([k, v]) => [k, f(v)]));
+
+const COMPONENTS_HINT = `When an item is a composed dish — a burger, sandwich, wrap, salad, bowl, pasta with sauce, pizza, curry, stir-fry, soup and the like — keep it as one item and list its main components in "components" (bread, patty, cheese, sauce, oil, rice, vegetables…), each with its own grams and nutrition per 100 g; the item's grams are then their total. People adjust these components afterwards, so include hidden calories such as cooking oil, butter, dressing and sauce as their own components. For a single food or a packaged product, leave "components" empty.`;
 
 export const PHOTO_PROMPT = `This photo was taken by someone logging a meal in their calorie tracker. Identify each distinct food or drink in it and estimate how much is there, so they can log it.
 
-For every item give a short, plain name including how it's prepared (like "Chicken thigh, roasted" or "Broccoli, steamed"), its estimated weight in grams, typical nutrition per 100 g for that food as prepared, and where its centre sits in the photo. Use visual cues such as plate size, cutlery and hands to judge portions. Include visible sauces, dressings, oils and drinks when they add meaningful calories.
+For every item give a short, plain name including how it's prepared (like "Chicken thigh, roasted" or "Broccoli, steamed"), its estimated weight in grams, typical nutrition per 100 g for that food as prepared, and where its centre sits in the photo. Include visible sauces, dressings, oils and drinks when they add meaningful calories.
+
+Judge portions against things of known size: a standard dinner plate is about 26–27 cm across, a side plate about 20 cm, a fork about 19 cm, a teaspoon about 14 cm. For drinks, estimate the volume in ml and count 1 ml as 1 g (a typical glass holds 250 ml, a mug 300 ml).
+
+If a nutrition label is readable on a package in the photo, use its values per 100 g instead of typical ones.
+
+Only count what belongs to this meal: ignore packaging, other people's plates and food in the background. If part of it has already been eaten, estimate what is actually there.
 
 ${COMPONENTS_HINT}
 
@@ -112,7 +126,11 @@ If there is no food or drink in the photo, return an empty list.`;
 export function textPrompt(description: string): string {
   return `Someone logging food in their calorie tracker described what they ate. Turn the description into separate items they can log.
 
-For every food or drink give a short, plain name including how it's prepared (like "Scrambled eggs" or "Latte, whole milk"), the amount in grams, and typical nutrition per 100 g for that food as prepared. Use the amounts they give, converting cups, slices, spoons and pieces to grams; where no amount is given, assume one typical portion. For drinks, count 1 ml as 1 g. Keep a named dish or product as one item unless its parts are listed separately; when they describe what's in a dish ("pasta with pesto and chicken"), make it one dish with those components.
+For every food or drink give a short, plain name including how it's prepared (like "Scrambled eggs" or "Latte, whole milk"), the amount in grams, and nutrition per 100 g for that food as prepared — typical values, or the product's own values when they name a brand or product you know. Use the amounts they give, converting cups, slices, spoons and pieces to grams; where no amount is given, assume one typical portion. For drinks, count 1 ml as 1 g.
+
+If they give a raw or dry weight ("80 g dry pasta", "200 g raw chicken"), keep that weight, use raw or dry nutrition values, and put "raw" or "dry" in the name. Otherwise take the food as eaten, and say how it's prepared in the name when it matters (like "Rice, cooked").
+
+Something described with what's in it or on it ("pasta with pesto and chicken", "toast with butter", "salad with feta and olive oil") is one dish with those as components. Things eaten alongside each other ("soup and a bread roll", "a burger and a cola") are separate items.
 
 ${COMPONENTS_HINT}
 
@@ -129,17 +147,50 @@ const clamp = (v: unknown, lo: number, hi: number, fallback: number) => {
   return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : fallback;
 };
 
+/** Drinks with alcohol have calories the macros don't show (7 kcal per gram of alcohol). */
+const ALCOHOL =
+  /\b(beer|ale|lager|stout|wine|prosecco|champagne|cava|cider|sake|vodka|gin|rum|whiske?y|bourbon|tequila|brandy|cognac|liqueur|cocktail|spritz|mojito|margarita|martini|negroni|sangria|mead)\b|пив|вино|вина|водк|виски|коньяк|сидр|шампанск|ликер|ликёр|коктейл/i;
+/** Sweeteners and sugar alcohols count as carbs but have few calories. */
+const FEW_CALORIE_CARBS = /sweetener|erythritol|xylitol|stevia|sucralose|allulose|sugar[- ]free|сахарозаменит|эритрит|стеви/i;
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/**
+ * Make the numbers add up. Protein, carbs and fat are parts of the 100 g, so
+ * together they can't be more than 100 g. Calories should match the macros
+ * (4 kcal per gram of protein or carbs, 9 per gram of fat); small gaps are
+ * normal (fibre, rounding), but a big one means one of the numbers is wrong,
+ * and the macros are the better-grounded of the two.
+ */
+export function checkNutrition(name: string, per100: EstimatedPart['per100']): EstimatedPart['per100'] {
+  let { kcal, p, c, f } = per100;
+  const macros = p + c + f;
+  if (macros > 100) {
+    const k = 100 / macros;
+    [p, c, f] = [round1(p * k), round1(c * k), round1(f * k)];
+  }
+  const fromMacros = 4 * p + 4 * c + 9 * f;
+  if (fromMacros > 0) {
+    const gap = kcal - fromMacros;
+    const tooHigh = gap > 25 && kcal > fromMacros * 1.3 && !ALCOHOL.test(name);
+    const tooLow = -gap > 25 && kcal < fromMacros * 0.7 && !FEW_CALORIE_CARBS.test(name);
+    if (kcal <= 0 || tooHigh || tooLow) kcal = Math.min(900, Math.round(fromMacros));
+  }
+  return { kcal, p, c, f };
+}
+
 function normalizePart(it: Record<string, unknown>): EstimatedPart {
+  const name = String(it.name ?? '').trim().slice(0, 80);
   return {
-    name: String(it.name ?? '').trim().slice(0, 80),
+    name,
     grams: Math.round(clamp(it.grams, 0, 5000, 0)),
-    per100: {
+    per100: checkNutrition(name, {
       // Pure fat is ~900 kcal per 100 g, so anything above that is a misread.
       kcal: clamp(it.kcal_per_100g, 0, 900, 0),
       p: clamp(it.protein_per_100g, 0, 100, 0),
       c: clamp(it.carbs_per_100g, 0, 100, 0),
       f: clamp(it.fat_per_100g, 0, 100, 0),
-    },
+    }),
   };
 }
 

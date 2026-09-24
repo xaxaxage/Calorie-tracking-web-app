@@ -81,6 +81,20 @@ describe('Gemini model switching', () => {
     expect(result.items).toHaveLength(1);
     expect(body.generationConfig?.responseMimeType).toBeUndefined();
     expect(body.contents[0].parts[0].text).toContain('Reply with JSON only');
+    expect(body.contents[0].parts[0].text).toMatch(/\{"name": "…", "components": \[/);
+  });
+
+  it('sends the schema with an explicit field order', async () => {
+    let body: any;
+    stubFetch((_m, b) => {
+      body = b;
+      return reply([RICE]);
+    });
+    await estimateWithGemini('AIza-test', ['gemini-flash-lite-latest'], { kind: 'text', text: 'rice' });
+    const schema = body.generationConfig.responseJsonSchema;
+    expect(schema.properties.items.items.propertyOrdering).toEqual([
+      'name', 'components', 'grams', 'kcal_per_100g', 'protein_per_100g', 'carbs_per_100g', 'fat_per_100g',
+    ]);
   });
 
   it('lists usable models, newest first, without non-text ones', async () => {
