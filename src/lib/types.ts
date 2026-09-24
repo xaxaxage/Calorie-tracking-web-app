@@ -106,6 +106,8 @@ export interface Settings {
   humor: boolean;
   /** Show "Build a dish" and "Make it a dish" for making your own dishes. */
   dishBuilder: boolean;
+  /** Gentle motion: screens, numbers and lists animate (also off when the system asks for reduced motion). */
+  animations: boolean;
 }
 
 /** The colors a palette is built from, as #rrggbb. */

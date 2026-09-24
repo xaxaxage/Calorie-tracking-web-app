@@ -38,6 +38,10 @@ barcode scanner, photo estimate and quick add.
   palette file, or take the colors from a photo.
 - **Humor mode** – the occasional light-hearted remark (a line under Today's title, playful empty meals, a note on
   some toasts, loading lines while the AI works). One switch turns it off for plain text everywhere.
+- **Animations** – quiet motion that shows what changed: screens fade in and their blocks rise into place, the
+  calorie ring draws and the numbers count up (and roll on from where they were after you add food), History's
+  bars grow, buttons give a little when pressed, and new ingredients and toasts slide in. **Settings →
+  Appearance → Animations** turns it all off; it's also off while the phone's Reduce Motion setting is on.
 - **Settings** – daily calorie and macro goals, appearance, API key, sync, export / import a backup, delete all data.
 - Works offline (except online search, barcode lookups and photo estimates) once loaded.
 

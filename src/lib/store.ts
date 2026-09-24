@@ -41,6 +41,7 @@ export function emptyData(): AppData {
       customThemes: [],
       humor: true,
       dishBuilder: true,
+      animations: true,
     },
   };
 }
@@ -166,6 +167,7 @@ export function parseData(raw: unknown): AppData {
         : [],
       humor: r.settings?.humor !== false,
       dishBuilder: r.settings?.dishBuilder !== false,
+      animations: r.settings?.animations !== false,
     },
   };
 }

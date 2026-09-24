@@ -24,6 +24,7 @@ import {
   scaleIngredients,
 } from '../lib/dish';
 import { useFoodSearch } from '../lib/foodSearch';
+import { motionOn } from '../lib/motion';
 import { builtinFood } from '../lib/foods';
 import { MEAL_LABEL } from '../lib/meals';
 import { todayKey } from '../lib/dates';
@@ -287,7 +288,9 @@ export function DishEditor({ start, meal: initialMeal, date }: { start: DishStar
     if (factor <= 0) setFactor(1);
     setBase([...(factor > 0 ? base : current), { ...ing, amount: ing.amount / f }]);
     setPicking(false);
-    requestAnimationFrame(() => listRef.current?.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+    requestAnimationFrame(() =>
+      listRef.current?.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: motionOn() ? 'smooth' : 'auto' }),
+    );
   };
 
   const dishName = name.trim() || 'My dish';

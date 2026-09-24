@@ -1,11 +1,13 @@
 import { render } from 'preact';
 import './styles.css';
 import './screens.css';
+import './motion.css';
 import { App } from './app';
 import { initRouter } from './lib/router';
 import { loadSyncConfig } from './lib/sync/state';
 import { getData, subscribe } from './lib/store';
 import { applyTheme } from './lib/theme';
+import { watchMotion } from './lib/motion';
 
 // Keep the color palette in step with Settings.
 let shownTheme = '';
@@ -18,6 +20,7 @@ function syncTheme() {
 }
 syncTheme();
 subscribe(syncTheme);
+watchMotion(subscribe);
 
 initRouter();
 render(<App />, document.getElementById('app')!);

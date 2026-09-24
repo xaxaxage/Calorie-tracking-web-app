@@ -3,6 +3,7 @@ import { updateSettings, useData } from '../lib/store';
 import { AUTO_THEME, HARBOR, PALETTES } from '../lib/theme';
 import { href } from '../lib/router';
 import { Check, Plus } from '../components/Icons';
+import { systemReducesMotion } from '../lib/motion';
 
 /** A tiny picture of the app in a palette: page, a card with a line of text, the main and accent colors. */
 export function Swatch({ base }: { base: ThemeBase }) {
@@ -32,7 +33,7 @@ function AutoSwatch() {
 
 export function AppearanceSettings() {
   const data = useData();
-  const { theme, customThemes, humor } = data.settings;
+  const { theme, customThemes, humor, animations } = data.settings;
   const options = [
     ...PALETTES.slice(0, 1).map((p) => ({ id: p.id, name: p.name, swatch: <Swatch base={p.base} /> })),
     { id: AUTO_THEME, name: 'Auto', swatch: <AutoSwatch /> },
@@ -97,6 +98,27 @@ export function AppearanceSettings() {
             {humor
               ? 'On: a light-hearted remark here and there. Never about your weight or food choices.'
               : 'Off: plain, to-the-point text everywhere.'}
+          </span>
+        </span>
+      </label>
+
+      <label class="toggle-row switch-row">
+        <input
+          type="checkbox"
+          role="switch"
+          class="switch"
+          id="motion-switch"
+          checked={animations}
+          onChange={(e) => updateSettings({ animations: (e.target as HTMLInputElement).checked })}
+        />
+        <span>
+          <strong>Animations</strong>
+          <span class="muted">
+            {systemReducesMotion()
+              ? 'Off while your phone’s Reduce Motion setting is on.'
+              : animations
+                ? 'On: screens, numbers and lists move gently when things change.'
+                : 'Off: everything appears instantly.'}
           </span>
         </span>
       </label>

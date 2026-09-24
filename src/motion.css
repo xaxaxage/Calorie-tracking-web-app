@@ -1,0 +1,178 @@
+/* ── Motion ───────────────────────────────────────────────────────────────
+   Small, quick movements that show what changed. Everything here is switched
+   off by <html data-motion="off"> (Settings → Animations, or the phone's
+   Reduce Motion), except the loading spinner. */
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pop {
+  40% {
+    transform: scale(1.22);
+  }
+}
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes lift {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+/* Screens fade in and their blocks rise into place one after another. */
+.screen {
+  animation: screen-in 0.2s ease-out backwards;
+}
+.screen > * {
+  animation: rise 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.screen > :nth-child(2) {
+  animation-delay: 0.03s;
+}
+.screen > :nth-child(3) {
+  animation-delay: 0.06s;
+}
+.screen > :nth-child(4) {
+  animation-delay: 0.09s;
+}
+.screen > :nth-child(5) {
+  animation-delay: 0.12s;
+}
+.screen > :nth-child(6) {
+  animation-delay: 0.15s;
+}
+.screen > :nth-child(7) {
+  animation-delay: 0.18s;
+}
+.screen > :nth-child(n + 8) {
+  animation-delay: 0.21s;
+}
+.footer {
+  animation: lift 0.36s 0.08s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* Press feedback: controls give a little under the finger. */
+.btn-primary,
+.btn-secondary,
+.round-add,
+.icon-btn,
+.pill,
+.tile,
+.fab,
+.palette-option,
+.segmented button,
+.mini-stepper > button,
+.part-remove,
+.parts-toggle,
+.describe-row,
+.pick-row,
+.link-btn {
+  transition:
+    transform 0.14s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+:is(
+    .btn-primary,
+    .btn-secondary,
+    .round-add,
+    .icon-btn,
+    .pill,
+    .tile,
+    .fab,
+    .palette-option,
+    .segmented button,
+    .mini-stepper > button,
+    .part-remove,
+    .parts-toggle,
+    .describe-row,
+    .pick-row
+  ):active:not(:disabled) {
+  transform: scale(0.96);
+}
+.fab:active {
+  transform: scale(0.92);
+}
+
+/* Something was just added, starred or chosen. */
+.round-add.done svg,
+.icon-btn.fav-on svg,
+.palette-option[aria-checked='true'] .palette-name svg {
+  animation: pop 0.38s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+/* History: the week's bars grow up from the baseline, left to right. */
+.bar-col {
+  transform-origin: bottom;
+  animation: grow-y 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.bar-col:nth-child(2) {
+  animation-delay: 0.04s;
+}
+.bar-col:nth-child(3) {
+  animation-delay: 0.08s;
+}
+.bar-col:nth-child(4) {
+  animation-delay: 0.12s;
+}
+.bar-col:nth-child(5) {
+  animation-delay: 0.16s;
+}
+.bar-col:nth-child(6) {
+  animation-delay: 0.2s;
+}
+.bar-col:nth-child(7) {
+  animation-delay: 0.24s;
+}
+
+/* New ingredients, opened ingredient lists and search results slide in. */
+.ing-row,
+.parts,
+.part-row,
+.pick-row {
+  animation: rise 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.food-row {
+  animation: fade 0.22s ease-out backwards;
+}
+
+/* Toasts arrive with a little bounce. */
+.toast {
+  animation: rise 0.34s cubic-bezier(0.2, 1.4, 0.4, 1) backwards;
+}
+
+/* Changing palette fades between colors instead of flashing. */
+body,
+.card,
+.list {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease;
+}
+
+/* ── Off switch ─────────────────────────────────────────────────────────── */
+html[data-motion='off'] *:not(.spinner),
+html[data-motion='off'] *::before,
+html[data-motion='off'] *::after {
+  animation: none !important;
+  transition: none !important;
+}

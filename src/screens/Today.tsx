@@ -3,6 +3,7 @@ import { MEAL_DISPLAY_ORDER } from '../lib/types';
 import { useData } from '../lib/store';
 import { addDays, longDate, relativeDayTitle, todayKey } from '../lib/dates';
 import { dayQuip, emptyMealText } from '../lib/humor';
+import { useCountUp } from '../lib/motion';
 import { entriesFor, fmtKcal, percent, sum } from '../lib/nutrition';
 import { MEAL_LABEL } from '../lib/meals';
 import { href, navigate } from '../lib/router';
@@ -19,18 +20,21 @@ export function Today({ date }: { date: string }) {
   const dayEntries = entriesFor(data.entries, date);
   const totals = sum(dayEntries);
   const goals = data.settings.goals;
-  const left = goals.kcal - totals.kcal;
+  // Shown values glide to the real ones (see Settings → Animations).
+  const eaten = useCountUp('today-kcal', totals.kcal);
+  const shown = { p: useCountUp('today-p', totals.p), c: useCountUp('today-c', totals.c), f: useCountUp('today-f', totals.f) };
+  const left = goals.kcal - eaten;
   const over = left < 0;
-  const progress = goals.kcal > 0 ? Math.min(1, totals.kcal / goals.kcal) : 0;
+  const progress = goals.kcal > 0 ? Math.min(1, eaten / goals.kcal) : 0;
 
   const goToDay = (key: string) => navigate(key === today ? '/' : href('/', { date: key }), { replace: true });
 
   const startAdd = (meal: MealId) => navigate(href('/add', { meal, date }), { startFlow: true });
 
   const macros = [
-    { key: 'p' as const, label: 'Protein', value: totals.p, goal: goals.p },
-    { key: 'c' as const, label: 'Carbs', value: totals.c, goal: goals.c },
-    { key: 'f' as const, label: 'Fat', value: totals.f, goal: goals.f },
+    { key: 'p' as const, label: 'Protein', value: shown.p, goal: goals.p },
+    { key: 'c' as const, label: 'Carbs', value: shown.c, goal: goals.c },
+    { key: 'f' as const, label: 'Fat', value: shown.f, goal: goals.f },
   ];
 
   const remark = dayQuip({
@@ -100,7 +104,7 @@ export function Today({ date }: { date: string }) {
               <div>
                 <span class="stat-label">Eaten</span>
                 <span class="stat-value num eaten">
-                  {fmtKcal(totals.kcal)} <span class="unit">kcal</span>
+                  {fmtKcal(eaten)} <span class="unit">kcal</span>
                 </span>
               </div>
               <a href="#/settings" class="goal-link">
