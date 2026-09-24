@@ -66,12 +66,12 @@ The app can use either AI; pick one in **Settings → AI estimates**:
   [console.anthropic.com](https://console.anthropic.com/settings/keys). Uses `claude-opus-5` with structured JSON
   output and `fallbacks: "default"`.
 
-Keys are stored only on your device, requests go straight from your phone to Google or Anthropic, and backups
-leave keys out. Describe → **Match from food list** always works without any key.
+Keys are stored on your devices (and, with sync on, passed encrypted to your other devices), requests go
+straight from your phone to Google or Anthropic, and backups leave keys out. Describe → **Match from food list** always works without any key.
 
 ## Sync between devices
 
-Like Anytype, devices are linked with a **12-word sync key** — no account.
+Devices are linked with a **12-word sync key** — no account.
 
 1. On your first device: **Settings → Sync between devices → Create sync key**. Save the 12 words somewhere safe
    (a password manager or Notes), tick the box, and tap **Start syncing**.
@@ -94,11 +94,13 @@ How it works:
   are uploaded again.
 - Every device keeps its full log and merges what it receives: the newest edit of an entry wins, a deletion wins
   over edits made before it, favorites and goals go by time. If a relay loses data, the devices upload it again.
-- API keys are never synced — add your Gemini key on each device.
+- The AI setup syncs too: the Gemini and Claude keys, the chosen AI and model. Enter a key once and every
+  device can use it; removing a key removes it everywhere. Each key goes by its own time, so picking a model on a
+  device without a key never erases the key set on another.
 
 Things to know: public relays are run by volunteers and can be slow or go away, which is why several are used
 and why each device keeps a full copy — keep exporting a backup now and then. Anyone with the 12 words can read
-and change your log. **Delete all entries** deletes on every synced device.
+and change your log and use your AI keys. **Delete all entries** deletes on every synced device.
 
 ## Appearance and humor
 

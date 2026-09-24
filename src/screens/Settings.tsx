@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { AiProvider, Goals } from '../lib/types';
 import {
   backupJson,
@@ -7,7 +7,7 @@ import {
   getData,
   isModelId,
   parseData,
-  replaceData,
+  restoreBackup,
   updateSettings,
   useData,
 } from '../lib/store';
@@ -61,9 +61,7 @@ export function Settings() {
       const next = parseData(JSON.parse(await file.text()));
       const count = next.entries.length;
       if (!confirm(`Replace everything on this device with the backup (${count} entries)?`)) return;
-      // Backups carry no API keys; keep the ones already on this device.
-      const current = getData().settings;
-      replaceData({ ...next, settings: { ...next.settings, apiKey: current.apiKey, geminiKey: current.geminiKey } });
+      restoreBackup(next);
       const g = next.settings.goals;
       setDraft({ kcal: String(g.kcal), p: String(g.p), c: String(g.c), f: String(g.f) });
       showToast(`Restored ${count} entries`);
@@ -243,6 +241,13 @@ function KeyField({
 }) {
   const [key, setKey] = useState(saved);
   const [show, setShow] = useState(false);
+  // A key can arrive from another device while this screen is open.
+  const shown = useRef(saved);
+  useEffect(() => {
+    if (saved === shown.current) return;
+    shown.current = saved;
+    setKey(saved);
+  }, [saved]);
   return (
     <form
       class="field"
@@ -318,6 +323,7 @@ function AiSettings() {
             <li>Paste it below and save.</li>
           </ol>
           <KeyField
+            key="gemini-key"
             id="gemini-key"
             label="Gemini API key"
             placeholder="AIza…"
@@ -348,6 +354,7 @@ function AiSettings() {
             with prepaid credit; each estimate is billed to your Anthropic account.
           </p>
           <KeyField
+            key="api-key"
             id="api-key"
             label="Anthropic API key"
             placeholder="sk-ant-…"
@@ -356,7 +363,10 @@ function AiSettings() {
           />
         </>
       )}
-      <p class="field-hint">Keys are stored only on this device and are left out of backups.</p>
+      <p class="field-hint">
+        Keys stay on your devices: with sync on, they reach your other devices encrypted, so you enter them once. They're
+        never in backups.
+      </p>
     </section>
   );
 }

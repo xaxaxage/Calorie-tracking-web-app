@@ -19,7 +19,7 @@ export function isModelId(value: unknown): value is string {
 }
 
 export function emptyMeta(): SyncMeta {
-  return { deletedEntries: {}, favoritedAt: {}, unfavoritedAt: {}, goalsAt: 0 };
+  return { deletedEntries: {}, favoritedAt: {}, unfavoritedAt: {}, goalsAt: 0, aiAt: 0, apiKeyAt: 0, geminiKeyAt: 0 };
 }
 
 export function emptyData(): AppData {
@@ -105,6 +105,9 @@ export function cleanMeta(raw: any): SyncMeta {
     favoritedAt: cleanTimes(raw?.favoritedAt),
     unfavoritedAt: cleanTimes(raw?.unfavoritedAt),
     goalsAt: num(raw?.goalsAt),
+    aiAt: num(raw?.aiAt),
+    apiKeyAt: num(raw?.apiKeyAt),
+    geminiKeyAt: num(raw?.geminiKeyAt),
   };
 }
 
@@ -119,11 +122,17 @@ export function parseData(raw: unknown): AppData {
   const goals = r.settings?.goals ?? {};
   const str = (v: unknown) => (typeof v === 'string' ? v : '');
   const apiKey = str(r.settings?.apiKey);
+  const geminiKey = str(r.settings?.geminiKey);
+  const meta = cleanMeta(r.meta);
+  // Keys saved before keys synced: count them as set long ago, so they reach a
+  // device without a key but lose to any key entered or removed from now on.
+  if (apiKey && !meta.apiKeyAt) meta.apiKeyAt = 1;
+  if (geminiKey && !meta.geminiKeyAt) meta.geminiKeyAt = 1;
   return {
     version: 1,
     entries: Array.isArray(r.entries) ? r.entries.map(cleanEntry).filter(Boolean) : [],
     favorites: Array.isArray(r.favorites) ? r.favorites.map(cleanFood).filter(Boolean) : [],
-    meta: cleanMeta(r.meta),
+    meta,
     settings: {
       goals: {
         kcal: num(goals.kcal, DEFAULT_GOALS.kcal),
@@ -138,7 +147,7 @@ export function parseData(raw: unknown): AppData {
           ? 'claude'
           : 'gemini',
       apiKey,
-      geminiKey: str(r.settings?.geminiKey),
+      geminiKey,
       geminiModel: isModelId(r.settings?.geminiModel) ? r.settings.geminiModel : DEFAULT_GEMINI_MODEL,
       geminiModels: Array.isArray(r.settings?.geminiModels)
         ? r.settings.geminiModels
@@ -295,19 +304,34 @@ export function toggleFavorite(food: Food) {
 
 // ── Settings ──────────────────────────────────────────────────────────────
 
+/** AI settings that sync together as one choice; the keys each sync on their own. */
+const AI_CHOICE = ['aiProvider', 'geminiModel', 'geminiAutoSwitch'] as const;
+
 export function updateSettings(patch: Partial<Settings>) {
-  const meta = patch.goals ? { ...data.meta, goalsAt: stamp() } : data.meta;
+  const changed = (k: keyof Settings) => k in patch && patch[k] !== data.settings[k];
+  const meta = { ...data.meta };
+  if (patch.goals) meta.goalsAt = stamp();
+  if (AI_CHOICE.some(changed)) meta.aiAt = stamp();
+  if (changed('apiKey')) meta.apiKeyAt = stamp();
+  if (changed('geminiKey')) meta.geminiKeyAt = stamp();
   commit({ ...data, settings: { ...data.settings, ...patch }, meta });
 }
 
-/** Backup file contents. API keys are left out so a shared or synced backup can't leak them. */
+/** Backup file contents. API keys are left out so a shared backup file can't leak them. */
 export function backupJson(source: AppData = data): string {
   const { apiKey: _claude, geminiKey: _gemini, ...settings } = source.settings;
-  return JSON.stringify({ ...source, settings }, null, 2);
+  const { apiKeyAt: _a, geminiKeyAt: _g, ...meta } = source.meta;
+  return JSON.stringify({ ...source, settings, meta }, null, 2);
 }
 
-export function replaceData(next: AppData) {
-  commit(next);
+/** Restore a backup, keeping this device's API keys (backups have none). */
+export function restoreBackup(next: AppData) {
+  const { settings, meta } = data;
+  commit({
+    ...next,
+    settings: { ...next.settings, apiKey: settings.apiKey, geminiKey: settings.geminiKey },
+    meta: { ...next.meta, apiKeyAt: meta.apiKeyAt, geminiKeyAt: meta.geminiKeyAt },
+  });
 }
 
 /** Delete every entry and favorite (on every synced device, too). */

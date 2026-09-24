@@ -117,8 +117,9 @@ export function SyncSettings() {
         {mode === 'idle' && (
           <>
             <p class="body-text">
-              Use the same log on several devices, like Anytype: a <strong>12-word sync key</strong> links them. Your data is
-              encrypted on this device before it's sent, and only devices with the key can read it. No account needed.
+              Use the same log on several devices: a <strong>12-word sync key</strong> links them. Your log, favorites, goals
+              and AI keys are encrypted on this device before they're sent, and only devices with the key can read them.
+              No account needed.
             </p>
             <div class="button-pair">
               <button type="button" class="btn-secondary" onClick={() => setMode('join')}>
@@ -135,7 +136,7 @@ export function SyncSettings() {
           <>
             <p class="body-text">
               This is your sync key. <strong>Save it somewhere safe</strong> (a password manager or Notes) — you'll type it
-              on your other devices. Anyone with these words can read your log.
+              on your other devices. Anyone with these words can read your log and use your AI keys.
             </p>
             <Words phrase={phrase} />
             <button type="button" class="btn-secondary" onClick={() => copy(phrase)}>

@@ -16,6 +16,7 @@ import {
   deleteEntry,
   emptyData,
   getData,
+  parseData,
   reload,
   toggleFavorite,
   updateEntry,
@@ -63,7 +64,7 @@ describe('week parts', () => {
       deletedEntries: { z: { at: 5, date: '2026-09-22' } },
     });
     const parts = buildParts(data);
-    expect([...parts.keys()].sort()).toEqual(['2026-W39', '2026-W40', 'meta']);
+    expect([...parts.keys()].sort()).toEqual(['2026-W39', '2026-W40', 'ai', 'meta']);
     const w39 = parts.get('2026-W39')!;
     expect(w39.kind === 'week' && w39.entries.map((e) => e.id)).toEqual(['a', 'b']);
     expect(w39.kind === 'week' && w39.deleted).toEqual([{ id: 'z', at: 5, date: '2026-09-22' }]);
@@ -140,11 +141,60 @@ describe('merging two devices', () => {
     expect(syncInto(ab, ba)).toBe(ab);
   });
 
-  it('never syncs API keys', () => {
-    const data = { ...emptyData(), settings: { ...emptyData().settings, geminiKey: 'AIza-secret', apiKey: 'sk-ant-x' } };
-    const json = JSON.stringify([...buildParts(data).values()]);
-    expect(json).not.toContain('AIza-secret');
-    expect(json).not.toContain('sk-ant-x');
+  it('syncs API keys and the AI choice, encrypted with everything else', () => {
+    const d = emptyData();
+    const phone: AppData = {
+      ...d,
+      settings: { ...d.settings, geminiKey: 'AIza-phone', geminiModel: 'gemini-flash-latest' },
+      meta: { ...d.meta, geminiKeyAt: 100, aiAt: 100 },
+    };
+    const laptop = emptyData();
+    const merged = syncInto(laptop, phone);
+    expect(merged.settings.geminiKey).toBe('AIza-phone');
+    expect(merged.settings.geminiModel).toBe('gemini-flash-latest');
+    const json = (x: AppData) => JSON.stringify([...buildParts(x).values()]);
+    expect(json(merged)).toBe(json(syncInto(phone, laptop)));
+    expect(syncInto(merged, phone)).toBe(merged);
+  });
+
+  it('removing a key removes it everywhere', () => {
+    const d = emptyData();
+    const withKey: AppData = { ...d, settings: { ...d.settings, apiKey: 'sk-ant-1' }, meta: { ...d.meta, apiKeyAt: 100 } };
+    const removed: AppData = { ...d, meta: { ...d.meta, apiKeyAt: 200 } };
+    expect(syncInto(withKey, removed).settings.apiKey).toBe('');
+    expect(syncInto(removed, withKey).settings.apiKey).toBe('');
+  });
+
+  it('a newer model choice on a device without a key keeps the key from elsewhere', () => {
+    const d = emptyData();
+    const phone: AppData = { ...d, settings: { ...d.settings, geminiKey: 'AIza-1' }, meta: { ...d.meta, geminiKeyAt: 100 } };
+    const tablet: AppData = {
+      ...d,
+      settings: { ...d.settings, aiProvider: 'claude', geminiModel: 'gemma-3-27b-it' },
+      meta: { ...d.meta, aiAt: 300 },
+    };
+    for (const merged of [syncInto(phone, tablet), syncInto(tablet, phone)]) {
+      expect(merged.settings.geminiKey).toBe('AIza-1');
+      expect(merged.settings.aiProvider).toBe('claude');
+      expect(merged.settings.geminiModel).toBe('gemma-3-27b-it');
+    }
+  });
+
+  it('keys saved before keys synced reach devices without one, and conflicting ones converge', () => {
+    const legacy = (key: string) => parseData({ version: 1, settings: { geminiKey: key } });
+    expect(legacy('AIza-old').meta.geminiKeyAt).toBe(1);
+    expect(syncInto(parseData({ version: 1 }), legacy('AIza-old')).settings.geminiKey).toBe('AIza-old');
+    const a = syncInto(legacy('AIza-a'), legacy('AIza-b'));
+    const b = syncInto(legacy('AIza-b'), legacy('AIza-a'));
+    expect(a.settings.geminiKey).toBe(b.settings.geminiKey);
+    // A key typed in afterwards wins over the old one.
+    const typed = { ...legacy('AIza-new'), meta: { ...legacy('AIza-new').meta, geminiKeyAt: 5000 } };
+    expect(syncInto(legacy('AIza-old'), typed).settings.geminiKey).toBe('AIza-new');
+  });
+
+  it('checks AI parts from other devices', () => {
+    const part = parsePart({ kind: 'ai', provider: 'evil', geminiModel: 'x y', apiKey: 'k'.repeat(500), geminiKey: ' AIza ', at: 'soon' });
+    expect(part).toMatchObject({ provider: 'gemini', geminiModel: 'gemini-flash-lite-latest', apiKey: '', geminiKey: 'AIza', at: 0 });
   });
 
   it('ignores malformed parts', () => {
@@ -174,6 +224,18 @@ describe('store bookkeeping for sync', () => {
     expect(getData().meta.unfavoritedAt[banana.id]).toBeGreaterThan(getData().meta.favoritedAt[banana.id]);
     updateSettings({ goals: { kcal: 1900, p: 1, c: 1, f: 1 } });
     expect(getData().meta.goalsAt).toBeGreaterThan(0);
+  });
+
+  it('stamps AI settings only when they change', () => {
+    updateSettings({ geminiKey: 'AIza-1' });
+    const first = getData().meta.geminiKeyAt;
+    expect(first).toBeGreaterThan(0);
+    expect(getData().meta.apiKeyAt).toBe(0);
+    updateSettings({ geminiKey: 'AIza-1', geminiModels: [] });
+    expect(getData().meta.geminiKeyAt).toBe(first);
+    expect(getData().meta.aiAt).toBe(0);
+    updateSettings({ geminiModel: 'gemini-flash-latest' });
+    expect(getData().meta.aiAt).toBeGreaterThan(first);
   });
 
   it('delete all leaves deletions for other devices', () => {

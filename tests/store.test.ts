@@ -13,6 +13,8 @@ import {
   STORAGE_KEY,
   toggleFavorite,
   updateEntry,
+  updateSettings,
+  restoreBackup,
 } from '../src/lib/store';
 import { builtinFood } from '../src/lib/foods';
 
@@ -96,6 +98,17 @@ describe('store', () => {
     const restored = parseData(JSON.parse(json));
     expect(restored.entries).toHaveLength(1);
     expect(restored.settings.apiKey).toBe('');
+  });
+
+  it('restoring a backup keeps this device\'s API keys', () => {
+    updateSettings({ geminiKey: 'AIza-mine' });
+    const keyAt = getData().meta.geminiKeyAt;
+    const backup = parseData(JSON.parse(backupJson({ ...getData(), entries: [] })));
+    addEntry({ date: '2026-09-23', meal: 'lunch', name: 'Soup', kcal: 200, p: 5, c: 20, f: 8, source: 'quick' });
+    restoreBackup(backup);
+    expect(getData().entries).toHaveLength(0);
+    expect(getData().settings.geminiKey).toBe('AIza-mine');
+    expect(getData().meta.geminiKeyAt).toBe(keyAt);
   });
 
   it('validates backups and drops malformed entries', () => {

@@ -3,7 +3,7 @@ import { wordlist } from '@scure/bip39/wordlists/english.js';
 import { getPublicKey } from 'nostr-tools/pure';
 
 /**
- * The sync key is a 12-word phrase (the same BIP-39 format Anytype and crypto
+ * The sync key is a 12-word phrase (the standard BIP-39 format that note apps and crypto
  * wallets use). Everything else is derived from it on the device:
  * - a signing key, so relays accept updates only from holders of the phrase,
  * - an AES-256-GCM key that encrypts all data before it leaves the phone,

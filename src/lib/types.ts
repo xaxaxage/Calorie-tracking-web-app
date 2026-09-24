@@ -71,9 +71,9 @@ export interface Settings {
   goals: Goals;
   /** Which AI estimates photos and descriptions. */
   aiProvider: AiProvider;
-  /** Anthropic API key (Claude). Stored only on this device. */
+  /** Anthropic API key (Claude). Synced (encrypted) when sync is on; never in backups. */
   apiKey: string;
-  /** Google AI Studio key (Gemini, has a free allowance). Stored only on this device. */
+  /** Google AI Studio key (Gemini, has a free allowance). Synced like the Claude key. */
   geminiKey: string;
   /** Any Gemini API model ID. */
   geminiModel: string;
@@ -115,6 +115,11 @@ export interface SyncMeta {
   unfavoritedAt: Record<string, number>;
   /** When the daily goals last changed (0 = never). */
   goalsAt: number;
+  /** When the AI choice (provider, model, auto-switch) last changed; 0 = never. */
+  aiAt: number;
+  /** When each API key was last set or removed; 0 = never. */
+  apiKeyAt: number;
+  geminiKeyAt: number;
 }
 
 export interface AppData {

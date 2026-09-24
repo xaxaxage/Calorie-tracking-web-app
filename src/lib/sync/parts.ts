@@ -1,11 +1,13 @@
-import type { AppData, Entry, Food, Goals, SyncMeta } from '../types';
-import { cleanEntry, cleanFood } from '../store';
+import type { AiProvider, AppData, Entry, Food, Goals, SyncMeta } from '../types';
+import { cleanEntry, cleanFood, DEFAULT_GEMINI_MODEL, isModelId } from '../store';
 import { fromKey, isDateKey } from '../dates';
 
 /**
- * Sync splits the data into small parts — one per ISO week of entries plus
- * one "meta" part for favorites and goals — so each fits comfortably in a
- * relay message and only the weeks that changed are uploaded again.
+ * Sync splits the data into small parts — one per ISO week of entries, one
+ * "meta" part for favorites and goals, and one "ai" part for the AI setup
+ * (provider, API keys, model) — so each fits comfortably in a relay message
+ * and only the parts that changed are uploaded again. Every part is
+ * encrypted before it leaves the device.
  *
  * Merging is per item and order-independent: the newest edit of an entry
  * wins, and a deletion wins over any edit made before it.
@@ -27,7 +29,38 @@ export interface MetaPart {
   goalsAt: number;
 }
 
-export type Part = WeekPart | MetaPart;
+/** The AI setup, so a key entered on one device works on all of them. */
+export interface AiPart {
+  kind: 'ai';
+  name: 'ai';
+  provider: AiProvider;
+  geminiModel: string;
+  geminiAutoSwitch: boolean;
+  /** When the provider/model choice changed. */
+  at: number;
+  apiKey: string;
+  apiKeyAt: number;
+  geminiKey: string;
+  geminiKeyAt: number;
+}
+
+export type Part = WeekPart | MetaPart | AiPart;
+
+function aiPart(data: AppData): AiPart {
+  const { settings: s, meta } = data;
+  return {
+    kind: 'ai',
+    name: 'ai',
+    provider: s.aiProvider,
+    geminiModel: s.geminiModel,
+    geminiAutoSwitch: s.geminiAutoSwitch,
+    at: meta.aiAt,
+    apiKey: s.apiKey,
+    apiKeyAt: meta.apiKeyAt,
+    geminiKey: s.geminiKey,
+    geminiKeyAt: meta.geminiKeyAt,
+  };
+}
 
 /** "2026-W39" for the ISO week containing the day. */
 export function weekName(dateKey: string): string {
@@ -97,6 +130,7 @@ export function buildParts(data: AppData): Map<string, Part> {
     goals: data.settings.goals,
     goalsAt: data.meta.goalsAt,
   });
+  parts.set('ai', aiPart(data));
   return parts;
 }
 
@@ -111,6 +145,22 @@ export function parsePart(raw: any): Part | undefined {
       deleted: (Array.isArray(raw.deleted) ? raw.deleted : []).filter(
         (d: any) => d && typeof d.id === 'string' && typeof d.at === 'number' && isDateKey(d.date),
       ),
+    };
+  }
+  if (raw.kind === 'ai') {
+    const key = (v: unknown) => (typeof v === 'string' && v.length <= 400 ? v.trim() : '');
+    const time = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+    return {
+      kind: 'ai',
+      name: 'ai',
+      provider: raw.provider === 'claude' ? 'claude' : 'gemini',
+      geminiModel: isModelId(raw.geminiModel) ? raw.geminiModel : DEFAULT_GEMINI_MODEL,
+      geminiAutoSwitch: raw.geminiAutoSwitch !== false,
+      at: time(raw.at),
+      apiKey: key(raw.apiKey),
+      apiKeyAt: time(raw.apiKeyAt),
+      geminiKey: key(raw.geminiKey),
+      geminiKeyAt: time(raw.geminiKeyAt),
     };
   }
   if (raw.kind === 'meta') {
@@ -135,7 +185,48 @@ export function parsePart(raw: any): Part | undefined {
 
 /** Merge a part from another device into local data. Returns the same object if nothing changed. */
 export function mergePart(data: AppData, part: Part): AppData {
-  return part.kind === 'week' ? mergeWeek(data, part) : mergeMeta(data, part);
+  if (part.kind === 'week') return mergeWeek(data, part);
+  if (part.kind === 'ai') return mergeAi(data, part);
+  return mergeMeta(data, part);
+}
+
+/**
+ * The newest provider/model choice wins, and each key separately: choosing a
+ * model on a device without a key never erases the key set elsewhere. Ties
+ * (keys saved before they synced) keep whichever key exists.
+ */
+function mergeAi(data: AppData, part: AiPart): AppData {
+  const mine = aiPart(data);
+  const next = { ...mine };
+
+  const choice = (x: AiPart) => JSON.stringify([x.provider, x.geminiModel, x.geminiAutoSwitch]);
+  if (part.at > mine.at || (part.at === mine.at && choice(part) > choice(mine))) {
+    next.provider = part.provider;
+    next.geminiModel = part.geminiModel;
+    next.geminiAutoSwitch = part.geminiAutoSwitch;
+    next.at = part.at;
+  }
+  const either = (a: string, b: string) => (a && b ? (a > b ? a : b) : a || b);
+  for (const [k, at] of [['apiKey', 'apiKeyAt'], ['geminiKey', 'geminiKeyAt']] as const) {
+    if (part[at] > mine[at]) {
+      next[k] = part[k];
+      next[at] = part[at];
+    } else if (part[at] === mine[at]) next[k] = either(mine[k], part[k]);
+  }
+
+  if (JSON.stringify(next) === JSON.stringify(mine)) return data;
+  return {
+    ...data,
+    settings: {
+      ...data.settings,
+      aiProvider: next.provider,
+      geminiModel: next.geminiModel,
+      geminiAutoSwitch: next.geminiAutoSwitch,
+      apiKey: next.apiKey,
+      geminiKey: next.geminiKey,
+    },
+    meta: { ...data.meta, aiAt: next.at, apiKeyAt: next.apiKeyAt, geminiKeyAt: next.geminiKeyAt },
+  };
 }
 
 function mergeWeek(data: AppData, part: WeekPart): AppData {
