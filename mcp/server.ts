@@ -1,4 +1,6 @@
 import './setup';
+import { createHash } from 'node:crypto';
+import { hostname, userInfo } from 'node:os';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -53,7 +55,26 @@ const setupProblem = !phrase
     ? 'The sync key is not a valid 12-word phrase. Copy it again from the app (Settings → Sync → Show sync key) and update the server settings in Claude Desktop.'
     : null;
 
-const sync = setupProblem ? null : new RelaySync(phrase, relays.length ? relays : DEFAULT_RELAYS);
+const PLATFORM: Record<string, string> = { win32: 'Windows', darwin: 'Mac', linux: 'Linux' };
+const deviceName = (process.env.DEVICE_NAME ?? '').trim().slice(0, 60) || `Claude Desktop · ${PLATFORM[process.platform] ?? process.platform}`;
+
+/** The same id every time on this computer, so restarting doesn't add another device to the app's list. */
+function deviceId(): string {
+  let user = '';
+  try {
+    user = userInfo().username;
+  } catch {
+    // no user name available
+  }
+  return createHash('sha256').update(`calorie-tracker-mcp|${hostname()}|${user}|${deviceName}`).digest('hex').slice(0, 32);
+}
+
+const sync = setupProblem
+  ? null
+  : new RelaySync(phrase, relays.length ? relays : DEFAULT_RELAYS, { id: deviceId(), name: deviceName, version: __MCP_VERSION__ });
+
+const RETIRED =
+  "The sync key was changed in the app, so the one set up here doesn't open the food log anymore. Copy the new 12 words (in the app: Settings → Sync between devices → Show sync key), paste them into this extension's settings in Claude Desktop (Settings → Extensions → Calorie Tracker), and restart Claude Desktop.";
 
 const NO_DATA =
   'No synced food log was found for this sync key. In the app, check that sync is on (Settings → Sync) and that the 12 words match the ones set up in Claude Desktop.';
@@ -83,6 +104,14 @@ async function retryPending(s: RelaySync) {
   failed.forEach((n) => pending.add(n));
 }
 
+/** Pull, finish earlier uploads, and keep this computer in the app's device list. */
+async function refresh(s: RelaySync) {
+  await s.pull();
+  if (s.retiredAt) return;
+  await retryPending(s);
+  await s.announce().catch((err) => console.error('Could not update the device list:', (err as Error).message));
+}
+
 function explain(err: unknown, writing: boolean): Reply {
   if (err instanceof ToolError) return failure(err.message);
   if (err instanceof OfflineError) return failure(writing ? `${err.message} Nothing was changed.` : err.message);
@@ -96,12 +125,12 @@ function read(run: () => unknown | Promise<unknown>) {
     try {
       let note: string | undefined;
       try {
-        await sync.pull();
-        await retryPending(sync);
+        await refresh(sync);
       } catch (err) {
         if (!(err instanceof OfflineError) || !sync.lastPullAt) throw err;
         note = `Offline: this is the food log as of ${new Date(sync.lastPullAt).toLocaleTimeString()}.`;
       }
+      if (sync.retiredAt) return failure(RETIRED);
       if (!note && sync.partCount === 0) note = NO_DATA;
       const value = (await run()) as object;
       return reply(note ? { note, ...value } : value);
@@ -115,8 +144,8 @@ function write(run: () => WriteResult<object>) {
   return serial(async (): Promise<Reply> => {
     if (!sync) return failure(setupProblem!);
     try {
-      await sync.pull();
-      await retryPending(sync);
+      await refresh(sync);
+      if (sync.retiredAt) return failure(`${RETIRED} Nothing was changed.`);
       if (sync.partCount === 0) return failure(`${NO_DATA} Nothing was changed.`);
       const before = getData();
       const { result, touched } = run();
@@ -290,7 +319,7 @@ async function main() {
   await server.connect(transport);
   console.error(`Calorie Tracker MCP server ${__MCP_VERSION__} is running.`);
   // Fetch the log now, so the first question doesn't wait for it.
-  if (sync) serial(() => sync.pull()).catch((err) => console.error('First sync failed:', (err as Error).message));
+  if (sync) serial(() => refresh(sync)).catch((err) => console.error('First sync failed:', (err as Error).message));
 }
 
 main().catch((err) => {

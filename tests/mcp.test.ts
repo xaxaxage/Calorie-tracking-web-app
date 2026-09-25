@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { createServer, type AddressInfo, type Socket } from 'node:net';
-import { verifyEvent, type Event } from 'nostr-tools/pure';
+import { finalizeEvent, verifyEvent, type Event } from 'nostr-tools/pure';
 import { addEntry, getData, reload, toggleFavorite, updateSettings } from '../src/lib/store';
 import { builtinFood } from '../src/lib/foods';
 import { addDays, todayKey } from '../src/lib/dates';
-import { newPhrase } from '../src/lib/sync/crypto';
+import { decryptText, deriveKeys, encryptText, newPhrase, partLabel } from '../src/lib/sync/crypto';
 import { weekName } from '../src/lib/sync/parts';
 import {
   checkDate,
@@ -272,6 +272,39 @@ describe('relay sync', () => {
     expect(getData().entries.map((e) => e.amount)).toEqual([90]);
   });
 
+  it('shows up in the device list, and stops when the key was replaced in the app', async () => {
+    const keys = await deriveKeys(phrase);
+    const device = { id: 'claude-test-device-01', name: 'Claude Desktop · Windows', version: '1.20260925.1200' };
+    const c = new RelaySync(phrase, [relay.url()], device);
+    clients.push(c);
+    await c.pull();
+    await c.announce();
+    const label = await partLabel(keys.nameKey, `device:${device.id}`);
+    const stored = [...relay.events.values()].find((e) => e.tags.some((t) => t[0] === 'd' && t[1] === label))!;
+    expect(JSON.parse(await decryptText(keys.encKey, stored.content))).toMatchObject({
+      kind: 'device',
+      id: device.id,
+      deviceName: 'Claude Desktop · Windows',
+      type: 'claude',
+      version: '1.20260925.1200',
+    });
+    // Not again right away.
+    await c.announce();
+    expect([...relay.events.values()].find((e) => e.tags.some((t) => t[1] === label))!.id).toBe(stored.id);
+
+    // Another device replaces the key: every part it knew becomes "retired".
+    const retired = await encryptText(keys.encKey, JSON.stringify({ kind: 'retired', at: Date.now() }));
+    for (const e of [...relay.events.values()].filter((e) => e.pubkey === stored.pubkey)) {
+      const d = e.tags.find((t) => t[0] === 'd')![1];
+      const next = finalizeEvent({ kind: 30078, created_at: e.created_at + 1, tags: [['d', d]], content: retired }, keys.secretKey);
+      relay.events.set(`${next.pubkey}:30078:${d}`, next);
+    }
+    const fresh = new RelaySync(phrase, [relay.url()], device);
+    clients.push(fresh);
+    await fresh.pull();
+    expect(fresh.retiredAt).toBeGreaterThan(0);
+  });
+
   it('reports a relay that refuses uploads', async () => {
     const c = client();
     await c.pull();
@@ -279,6 +312,17 @@ describe('relay sync', () => {
     relay.refuse(true);
     expect(await c.push(['2026-W39'])).toEqual({ sent: 0, failed: ['2026-W39'] });
     relay.refuse(false);
+  });
+
+  it('does not announce itself under a key with no food log', async () => {
+    const other = newPhrase();
+    const c = new RelaySync(other, [relay.url()], { id: 'claude-unused-key-01', name: 'Claude Desktop · Windows', version: '1' });
+    clients.push(c);
+    const before = relay.events.size;
+    await c.pull();
+    await c.announce();
+    expect(c.partCount).toBe(0);
+    expect(relay.events.size).toBe(before);
   });
 
   it('says when no relay can be reached, without crashing', async () => {

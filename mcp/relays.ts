@@ -3,7 +3,7 @@ import { finalizeEvent, type Event } from 'nostr-tools/pure';
 import { normalizeURL } from 'nostr-tools/utils';
 import WebSocketFromWs from 'ws';
 import { applyMerged, getData } from '../src/lib/store';
-import { buildParts, mergePart, parsePart } from '../src/lib/sync/parts';
+import { buildParts, devicePartName, mergePart, parsePart, type DevicePart } from '../src/lib/sync/parts';
 import { decryptText, deriveKeys, encryptText, partLabel, sha256, type SyncKeys } from '../src/lib/sync/crypto';
 
 /**
@@ -22,6 +22,15 @@ const LOOKBACK = 15 * 60;
 
 /** A relay that couldn't be reached is left out for this long, so it doesn't slow down every request. */
 const SKIP_DOWN_RELAY = 2 * 60_000;
+/** How often to tell the app's device list that Claude Desktop is still in use. */
+const ANNOUNCE_EVERY = 15 * 60_000;
+
+/** How this server shows up in the app's device list. */
+export interface DeviceInfo {
+  id: string;
+  name: string;
+  version: string;
+}
 
 /** The relays couldn't be reached. */
 export class OfflineError extends Error {}
@@ -54,18 +63,27 @@ export class RelaySync {
   private downUntil = new Map<string, number>();
   /** When the data was last brought up to date, for showing stale data offline. */
   lastPullAt = 0;
+  /** Set when the sync key was replaced in the app: it opens nothing anymore. */
+  retiredAt = 0;
+  private lastAnnounced = 0;
+  /** When the app last removed this server from its device list. */
+  private removedAt = 0;
 
   constructor(
     private phrase: string,
     readonly relays: string[],
+    private device?: DeviceInfo,
   ) {
     useWebSocketImplementation(RelaySocket);
     this.pool = new SimplePool();
   }
 
-  /** How many parts (weeks, favorites and goals, AI setup) the relays hold for this key. */
+  /** Labels of the log's parts (weeks, favorites and goals, AI setup) found on the relays. */
+  private dataLabels = new Set<string>();
+
+  /** How many parts of the food log the relays hold for this key (device notes don't count). */
   get partCount(): number {
-    return this.seen.size;
+    return this.dataLabels.size;
   }
 
   private getKeys(): Promise<SyncKeys> {
@@ -147,6 +165,19 @@ export class RelaySync {
     const part = parsePart(raw);
     if (!part) return;
     this.seen.set(label, { id: event.id, hash: await sha256(text), createdAt: event.created_at });
+    if (part.kind === 'retired') {
+      this.retiredAt = part.at;
+      return;
+    }
+    if (part.kind === 'device') {
+      // Removed from the list in the app: say it's still here the next time it's used.
+      if (part.id === this.device?.id && part.removedAt && part.removedAt >= part.seenAt) {
+        this.removedAt = part.removedAt;
+        this.lastAnnounced = 0;
+      }
+      return;
+    }
+    this.dataLabels.add(label);
     const before = getData();
     const after = mergePart(before, part);
     if (after !== before) applyMerged(after);
@@ -157,7 +188,6 @@ export class RelaySync {
    * Returns how many went up, and the names no relay accepted.
    */
   async push(names: Iterable<string>): Promise<{ sent: number; failed: string[] }> {
-    const keys = await this.getKeys();
     const parts = buildParts(getData());
     const failed: string[] = [];
     let sent = 0;
@@ -166,23 +196,46 @@ export class RelaySync {
       if (!part) continue;
       const json = JSON.stringify(part);
       const hash = await sha256(json);
-      const label = await this.label(name);
-      const known = this.seen.get(label);
-      if (known?.hash === hash) continue;
-      const content = await encryptText(keys.encKey, json);
-      if (content.length > MAX_CONTENT) {
-        throw new Error(`The week ${name} is too large to sync (${Math.round(content.length / 1000)} KB).`);
-      }
-      // Relays keep the newest version by timestamp, so never go backwards.
-      const createdAt = Math.max(Math.floor(Date.now() / 1000), (known?.createdAt ?? 0) + 1);
-      const event = finalizeEvent({ kind: KIND, created_at: createdAt, tags: [['d', label]], content }, keys.secretKey);
-      const results = await Promise.allSettled(this.pool.publish(this.usable(), event, { maxWait: 8000 }));
-      if (results.some((r) => r.status === 'fulfilled')) {
-        this.seen.set(label, { id: event.id, hash, createdAt });
-        sent++;
-      } else failed.push(name);
+      if (this.seen.get(await this.label(name))?.hash === hash) continue;
+      if (await this.send(name, json, hash)) sent++;
+      else failed.push(name);
     }
     return { sent, failed };
+  }
+
+  /** Encrypt and publish one part; true if a relay took it. */
+  private async send(name: string, json: string, hash: string): Promise<boolean> {
+    const keys = await this.getKeys();
+    const label = await this.label(name);
+    const content = await encryptText(keys.encKey, json);
+    if (content.length > MAX_CONTENT) {
+      throw new Error(`The week ${name} is too large to sync (${Math.round(content.length / 1000)} KB).`);
+    }
+    // Relays keep the newest version by timestamp, so never go backwards.
+    const createdAt = Math.max(Math.floor(Date.now() / 1000), (this.seen.get(label)?.createdAt ?? 0) + 1);
+    const event = finalizeEvent({ kind: KIND, created_at: createdAt, tags: [['d', label]], content }, keys.secretKey);
+    const results = await Promise.allSettled(this.pool.publish(this.usable(), event, { maxWait: 8000 }));
+    if (!results.some((r) => r.status === 'fulfilled')) return false;
+    this.seen.set(label, { id: event.id, hash, createdAt });
+    return true;
+  }
+
+  /** Show up in the app's device list; refreshed at most every so often while in use. */
+  async announce(): Promise<void> {
+    // Not with a key that has no log (a typo'd or unused key): nobody would see it, and it would look like data.
+    if (!this.device || this.retiredAt || this.partCount === 0 || Date.now() - this.lastAnnounced < ANNOUNCE_EVERY) return;
+    const { id, name, version } = this.device;
+    const part: DevicePart = {
+      kind: 'device',
+      name: devicePartName(id),
+      id,
+      deviceName: name,
+      type: 'claude',
+      version,
+      seenAt: Math.max(Date.now(), this.removedAt + 1),
+    };
+    const json = JSON.stringify(part);
+    if (await this.send(part.name, json, await sha256(json))) this.lastAnnounced = Date.now();
   }
 
   close() {

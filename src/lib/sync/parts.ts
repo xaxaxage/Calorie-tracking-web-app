@@ -44,7 +44,49 @@ export interface AiPart {
   geminiKeyAt: number;
 }
 
+/** The data parts, merged into the log. */
 export type Part = WeekPart | MetaPart | AiPart;
+
+export type DeviceType = 'phone' | 'tablet' | 'computer' | 'claude';
+
+/**
+ * A device using the sync key, for the list in Settings. Each device writes
+ * only its own, now and then while it's used; another device can mark it
+ * removed, which hides it until it's used again.
+ */
+export interface DevicePart {
+  kind: 'device';
+  /** "device:<id>" */
+  name: string;
+  id: string;
+  deviceName: string;
+  type: DeviceType;
+  /** App version, or the Claude Desktop extension's. */
+  version: string;
+  /** Last time it was used, roughly. */
+  seenAt: number;
+  removedAt?: number;
+}
+
+/**
+ * Written over every part of a sync key that was replaced by a new one, so
+ * devices still using the old key stop syncing and ask for the new one.
+ */
+export interface RetiredPart {
+  kind: 'retired';
+  at: number;
+}
+
+/** Anything a device can find on the relays. */
+export type SyncPart = Part | DevicePart | RetiredPart;
+
+const DEVICE_TYPES: DeviceType[] = ['phone', 'tablet', 'computer', 'claude'];
+
+export const devicePartName = (id: string) => `device:${id}`;
+
+export function isDeviceId(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-z0-9-]{8,64}$/i.test(value);
+}
 
 function aiPart(data: AppData): AiPart {
   const { settings: s, meta } = data;
@@ -135,8 +177,23 @@ export function buildParts(data: AppData): Map<string, Part> {
 }
 
 /** Validate a part received from another device. */
-export function parsePart(raw: any): Part | undefined {
+export function parsePart(raw: any): SyncPart | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
+  const time = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+  if (raw.kind === 'device') {
+    if (!isDeviceId(raw.id) || typeof raw.deviceName !== 'string' || !raw.deviceName.trim()) return undefined;
+    return {
+      kind: 'device',
+      name: devicePartName(raw.id),
+      id: raw.id,
+      deviceName: raw.deviceName.trim().slice(0, 60),
+      type: DEVICE_TYPES.includes(raw.type) ? raw.type : 'computer',
+      version: typeof raw.version === 'string' ? raw.version.slice(0, 60) : '',
+      seenAt: time(raw.seenAt),
+      ...(time(raw.removedAt) ? { removedAt: time(raw.removedAt) } : {}),
+    };
+  }
+  if (raw.kind === 'retired') return time(raw.at) ? { kind: 'retired', at: time(raw.at) } : undefined;
   if (raw.kind === 'week' && typeof raw.name === 'string' && /^\d{4}-W\d{2}$/.test(raw.name)) {
     return {
       kind: 'week',
@@ -149,7 +206,6 @@ export function parsePart(raw: any): Part | undefined {
   }
   if (raw.kind === 'ai') {
     const key = (v: unknown) => (typeof v === 'string' && v.length <= 400 ? v.trim() : '');
-    const time = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
     return {
       kind: 'ai',
       name: 'ai',
@@ -181,6 +237,11 @@ export function parsePart(raw: any): Part | undefined {
     };
   }
   return undefined;
+}
+
+/** Whether a device belongs in the list: used since it was last removed. */
+export function deviceShown(d: DevicePart): boolean {
+  return !d.removedAt || d.seenAt > d.removedAt;
 }
 
 /** Merge a part from another device into local data. Returns the same object if nothing changed. */

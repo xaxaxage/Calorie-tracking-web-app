@@ -95,6 +95,16 @@ After that, every change syncs by itself within a few seconds while the app is o
 otherwise. **Show sync key** displays the words again; **Turn off sync on this device** stops syncing but keeps
 the log on that device.
 
+**Devices** lists every device using the key — this one first, then the others with when they were last
+active and which version of the app they run (Claude Desktop shows up too). Rename this device with the pencil;
+the trash button hides another device from the list on every device (it comes back if it's used again).
+
+**Change sync key** cuts off devices you no longer trust — a lost phone, a computer you don't use anymore, or
+someone who saw your words. It makes a new 12-word key and moves your log to it; the old key stops working:
+every part stored under it is replaced, so the old words open nothing, and devices still using them stop
+syncing and ask for the new key (they keep what they already have). Enter the new key on each device you keep,
+and in Claude Desktop's extension settings.
+
 How it works:
 
 - The key is a standard BIP-39 phrase. On the device it is turned (PBKDF2 → HKDF) into a signing key, an
@@ -107,6 +117,8 @@ How it works:
   are uploaded again.
 - Every device keeps its full log and merges what it receives: the newest edit of an entry wins, a deletion wins
   over edits made before it, favorites and goals go by time. If a relay loses data, the devices upload it again.
+- Each device also writes a small note about itself (name, type, app version, when it was last used —
+  refreshed at most every 15 minutes), encrypted like everything else, for the device list.
 - The AI setup syncs too: the Gemini and Claude keys, the chosen AI and model. Enter a key once and every
   device can use it; removing a key removes it everywhere. Each key goes by its own time, so picking a model on a
   device without a key never erases the key set on another.
@@ -136,7 +148,8 @@ It's a small local connector (an MCP server) that uses the same encrypted sync a
    on in **Settings → Extensions**.)
 
 Claude Desktop runs the extension with its own built-in Node.js; nothing else needs installing. To update,
-download and open the file again.
+download and open the file again. It appears in the app's device list as **Claude Desktop · Windows**. If you
+change the sync key, paste the new words into the extension's settings too.
 
 **What Claude can do:** `get_day` (a day by meal, with totals against your goals), `get_summary` (daily
 totals and averages over a period), `search_foods` (your favorites, recent foods, the food list and — when
@@ -174,7 +187,8 @@ The same server as a single file, for any MCP client. It needs [Node.js](https:/
    Then quit Claude Desktop completely (also from the tray icon) and open it again.
 3. Claude Code: `claude mcp add calorie-tracker -e SYNC_KEY="your twelve words here" -- node /path/to/calorie-tracker-mcp.mjs`
 
-Optional: `RELAYS` (space- or comma-separated `wss://` URLs) to use other relays than the app's defaults.
+Optional: `RELAYS` (space- or comma-separated `wss://` URLs) to use other relays than the app's defaults, and
+`DEVICE_NAME` for its name in the app's device list.
 
 </details>
 

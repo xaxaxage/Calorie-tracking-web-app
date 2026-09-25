@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { DEFAULT_RELAYS, isRelayUrl, loadSyncConfig, useSyncStatus, type SyncStatus } from '../lib/sync/state';
+import { deviceShown, type DevicePart, type DeviceType } from '../lib/sync/parts';
+import { renameThisDevice, thisDevice } from '../lib/sync/device';
 import { showToast } from '../lib/toast';
+import { Chat, ComputerIcon, Pencil, PhoneIcon, TabletIcon, Trash } from '../components/Icons';
 
-type Mode = 'idle' | 'create' | 'join' | 'show';
+type Mode = 'idle' | 'create' | 'join' | 'show' | 'change';
 
 const crypto = () => import('../lib/sync/crypto');
 const engine = () => import('../lib/sync/engine');
@@ -51,9 +54,130 @@ function Words({ phrase }: { phrase: string }) {
   );
 }
 
+const DEVICE_ICON: Record<DeviceType, typeof Chat> = { phone: PhoneIcon, tablet: TabletIcon, computer: ComputerIcon, claude: Chat };
+
+/** Every device using the sync key, this one first, then by when they were last used. */
+function DeviceList({ devices }: { devices: Record<string, DevicePart> }) {
+  const me = thisDevice();
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState('');
+  const nameInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (renaming) nameInput.current?.select();
+  }, [renaming]);
+  const mine: DevicePart = {
+    kind: 'device',
+    name: `device:${me.id}`,
+    id: me.id,
+    deviceName: me.name,
+    type: me.type,
+    version: __APP_VERSION__,
+    seenAt: Date.now(),
+  };
+  const others = Object.values(devices)
+    .filter((d) => d.id !== me.id && deviceShown(d))
+    .sort((a, b) => b.seenAt - a.seenAt);
+  const list = [mine, ...others];
+
+  const saveName = async (e: Event) => {
+    e.preventDefault();
+    renameThisDevice(name);
+    setRenaming(false);
+    const { announceNow } = await engine();
+    await announceNow().catch(() => undefined);
+  };
+
+  const remove = async (d: DevicePart) => {
+    const ok = confirm(
+      `Remove "${d.deviceName}" from the list?\n\nThis only hides it: if it's still used with this sync key, it shows up again. To stop a device from syncing, change the sync key.`,
+    );
+    if (!ok) return;
+    try {
+      const { removeDevice } = await engine();
+      await removeDevice(d.id);
+      showToast(`Removed ${d.deviceName}`);
+    } catch (err) {
+      showToast((err as Error).message || 'Could not remove it. Try again.');
+    }
+  };
+
+  return (
+    <div class="stack-8">
+      <h3 id="devices-title" class="field-label">
+        Devices ({list.length})
+      </h3>
+      <ul class="device-list" aria-labelledby="devices-title">
+        {list.map((d) => {
+          const Icon = DEVICE_ICON[d.type] ?? ComputerIcon;
+          const isMe = d.id === me.id;
+          return (
+            <li key={d.id} class="device-row">
+              <span class="device-icon">
+                <Icon size={20} />
+              </span>
+              {isMe && renaming ? (
+                <form class="device-rename" onSubmit={saveName}>
+                  <input
+                    id="device-name"
+                    class="input"
+                    aria-label="Name for this device"
+                    maxLength={60}
+                    placeholder={me.name}
+                    value={name}
+                    onInput={(e) => setName((e.target as HTMLInputElement).value)}
+                    ref={nameInput}
+                  />
+                  <button type="submit" class="link-btn">
+                    Save
+                  </button>
+                  <button type="button" class="link-btn" onClick={() => setRenaming(false)}>
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <div class="row-main device-text">
+                  <span class="device-name">{d.deviceName}</span>
+                  <span class="muted small-text">
+                    {isMe ? 'This device' : `Active ${ago(d.seenAt)}`}
+                    {d.version ? ` · ${d.version}` : ''}
+                  </span>
+                </div>
+              )}
+              {isMe
+                ? !renaming && (
+                    <button
+                      type="button"
+                      class="part-remove"
+                      aria-label="Rename this device"
+                      onClick={() => {
+                        setName(me.name);
+                        setRenaming(true);
+                      }}
+                    >
+                      <Pencil size={18} />
+                    </button>
+                  )
+                : (
+                    <button type="button" class="part-remove" aria-label={`Remove ${d.deviceName}`} onClick={() => remove(d)}>
+                      <Trash size={18} />
+                    </button>
+                  )}
+            </li>
+          );
+        })}
+      </ul>
+      <p class="field-hint">
+        Each device appears once it has synced with this version of the app. Removing one only hides it; to stop a device
+        from syncing, change the sync key.
+      </p>
+    </div>
+  );
+}
+
 export function SyncSettings() {
   const status = useSyncStatus();
-  const enabled = status.state !== 'off';
+  const retiredAt = loadSyncConfig()?.retiredAt;
+  const enabled = status.state !== 'off' && !retiredAt;
   const [mode, setMode] = useState<Mode>('idle');
   const [phrase, setPhrase] = useState('');
   const [saved, setSaved] = useState(false);
@@ -107,6 +231,30 @@ export function SyncSettings() {
     setMode('create');
   };
 
+  const openChange = async () => {
+    const { newPhrase } = await crypto();
+    setPhrase(newPhrase());
+    setSaved(false);
+    setError('');
+    setMode('change');
+  };
+
+  const changeKey = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const { changeSyncKey } = await engine();
+      await changeSyncKey(phrase);
+      setPhrase('');
+      setMode('show');
+      showToast('Sync key changed. Enter the new key on your other devices.');
+    } catch (err) {
+      setError((err as Error).message || 'Could not change the sync key.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!enabled) {
     return (
       <section class="card stack-12" aria-labelledby="sync-title">
@@ -114,7 +262,31 @@ export function SyncSettings() {
           Sync between devices
         </h2>
 
-        {mode === 'idle' && (
+        {mode === 'idle' && retiredAt && (
+          <>
+            <div class="notice plain" role="status">
+              The sync key was changed on another device on {new Date(retiredAt).toLocaleDateString()}, so this device
+              stopped syncing. Enter the new key to continue — what's on this device is kept and combined with the synced
+              log.
+            </div>
+            <button type="button" class="btn-primary" onClick={() => setMode('join')}>
+              Enter the new key
+            </button>
+            <button
+              type="button"
+              class="link-btn left danger"
+              onClick={async () => {
+                const { disableSync } = await engine();
+                disableSync();
+                showToast('Sync turned off on this device');
+              }}
+            >
+              Turn off sync on this device
+            </button>
+          </>
+        )}
+
+        {mode === 'idle' && !retiredAt && (
           <>
             <p class="body-text">
               Use the same log on several devices: a <strong>12-word sync key</strong> links them. Your log, favorites, goals
@@ -243,6 +415,8 @@ export function SyncSettings() {
         </>
       )}
 
+      <DeviceList devices={config?.devices ?? {}} />
+
       <details class="fold claude-desktop">
         <summary>Use with Claude Desktop</summary>
         <p class="field-hint">
@@ -299,6 +473,39 @@ export function SyncSettings() {
           </button>
         </div>
       </details>
+
+      {mode === 'change' ? (
+        <div class="stack-12 change-key">
+          <h3 class="field-label">Change sync key</h3>
+          <p class="body-text">
+            This is your <strong>new sync key</strong>. Your log moves to it, and the old key stops working: devices still
+            using it stop syncing until you enter the new key there. Use this if a device is lost or someone else has seen
+            your words. <strong>Save the new words</strong> — you'll enter them on each device you keep (and in Claude
+            Desktop, if you use it).
+          </p>
+          <Words phrase={phrase} />
+          <button type="button" class="btn-secondary" onClick={() => copy(phrase)}>
+            Copy the 12 words
+          </button>
+          <label class="toggle-row">
+            <input type="checkbox" checked={saved} onChange={(e) => setSaved((e.target as HTMLInputElement).checked)} />
+            <span>I've saved the new key</span>
+          </label>
+          {error && <div class="notice plain">{error}</div>}
+          <div class="button-pair">
+            <button type="button" class="btn-secondary" disabled={busy} onClick={() => setMode('idle')}>
+              Cancel
+            </button>
+            <button type="button" class="btn-primary" disabled={!saved || busy} onClick={changeKey}>
+              {busy ? 'Switching…' : 'Switch to the new key'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" class="link-btn left" onClick={openChange}>
+          Change sync key
+        </button>
+      )}
 
       <button
         type="button"

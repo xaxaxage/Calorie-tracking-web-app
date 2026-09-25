@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import type { DevicePart } from './parts';
 
 /**
  * Sync settings and status. Kept separate from the sync engine so screens can
@@ -16,6 +17,10 @@ export interface SyncConfig {
   /** Relay label → the newest version seen: event id, content hash, time. */
   seen: Record<string, { id: string; hash: string; createdAt: number }>;
   lastSyncAt: number;
+  /** Devices using this key, as they last described themselves: id → part. */
+  devices: Record<string, DevicePart>;
+  /** Set when another device replaced this sync key with a new one. */
+  retiredAt?: number;
 }
 
 export function loadSyncConfig(): SyncConfig | null {
@@ -28,6 +33,8 @@ export function loadSyncConfig(): SyncConfig | null {
       relays: relays.length > 0 ? relays : [...DEFAULT_RELAYS],
       seen: raw.seen && typeof raw.seen === 'object' ? raw.seen : {},
       lastSyncAt: typeof raw.lastSyncAt === 'number' ? raw.lastSyncAt : 0,
+      devices: raw.devices && typeof raw.devices === 'object' && !Array.isArray(raw.devices) ? raw.devices : {},
+      ...(typeof raw.retiredAt === 'number' ? { retiredAt: raw.retiredAt } : {}),
     };
   } catch {
     return null;

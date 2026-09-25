@@ -155,3 +155,24 @@ export const Chat = (p: IconProps) => (
     <path d="M7.5 9.5h9M7.5 12.5h6" />
   </Svg>
 );
+
+export const PhoneIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+    <path d="M11 18h2" />
+  </Svg>
+);
+
+export const TabletIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="4" y="3" width="16" height="18" rx="2.5" />
+    <path d="M11 18h2" />
+  </Svg>
+);
+
+export const ComputerIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="12" rx="2" />
+    <path d="M8 20h8M12 16v4" />
+  </Svg>
+);
