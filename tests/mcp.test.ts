@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { AddressInfo } from 'node:net';
+import { createServer, type AddressInfo, type Socket } from 'node:net';
 import { verifyEvent, type Event } from 'nostr-tools/pure';
 import { addEntry, getData, reload, toggleFavorite, updateSettings } from '../src/lib/store';
 import { builtinFood } from '../src/lib/foods';
@@ -285,4 +285,28 @@ describe('relay sync', () => {
     const c = client(['ws://127.0.0.1:1', 'ws://127.0.0.1:2']);
     await expect(c.pull()).rejects.toBeInstanceOf(OfflineError);
   });
+
+  it('survives a relay that never answers, and leaves it out for a while', async () => {
+    // Accepts connections and stays silent, like a relay that is blocked or overloaded.
+    const sockets: Socket[] = [];
+    const silent = createServer((s) => sockets.push(s));
+    await new Promise<void>((r) => silent.listen(0, '127.0.0.1', r));
+    const silentUrl = `ws://127.0.0.1:${(silent.address() as AddressInfo).port}`;
+    try {
+      logFood({ meal: 'lunch', date: '2026-09-21', items: [latte] });
+      const c = client([relay.url(), silentUrl]);
+      await c.pull();
+      expect(await c.push(['2026-W39'])).toEqual({ sent: 1, failed: [] });
+      const started = Date.now();
+      await c.pull();
+      expect(Date.now() - started).toBeLessThan(1500);
+
+      await expect(client([silentUrl]).pull()).rejects.toBeInstanceOf(OfflineError);
+      // A late error from a socket given up on would surface here and fail the run.
+      await new Promise((r) => setTimeout(r, 300));
+    } finally {
+      sockets.forEach((s) => s.destroy());
+      silent.close();
+    }
+  }, 20_000);
 });

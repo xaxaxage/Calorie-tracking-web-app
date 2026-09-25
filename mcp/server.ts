@@ -273,6 +273,11 @@ server.registerTool(
 
 // ── Start ─────────────────────────────────────────────────────────────────
 
+// A stray error in a library must not end the server: Claude Desktop would show it as
+// disconnected until restarted. Log it (it lands in Claude Desktop's log) and carry on.
+process.on('uncaughtException', (err) => console.error('Unexpected error, still running:', err));
+process.on('unhandledRejection', (err) => console.error('Unexpected error, still running:', err));
+
 async function main() {
   if (setupProblem) console.error(setupProblem);
   const transport = new StdioServerTransport();
