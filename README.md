@@ -43,6 +43,7 @@ barcode scanner, photo estimate and quick add.
   bars grow, buttons give a little when pressed, and new ingredients and toasts slide in. **Settings →
   Appearance → Animations** turns it all off; it's also off while the phone's Reduce Motion setting is on.
 - **Settings** – daily calorie and macro goals, appearance, API key, sync, export / import a backup, delete all data.
+- **Claude Desktop** – ask Claude about your food log or log meals by describing them (see below).
 - Works offline (except online search, barcode lookups and photo estimates) once loaded.
 
 ## Use it on your iPhone
@@ -114,6 +115,69 @@ Things to know: public relays are run by volunteers and can be slow or go away, 
 and why each device keeps a full copy — keep exporting a backup now and then. Anyone with the 12 words can read
 and change your log and use your AI keys. **Delete all entries** deletes on every synced device.
 
+## Use with Claude Desktop
+
+Claude Desktop can read and write your food log: ask *"what did I eat today?"*, *"how was my protein this
+week?"*, or just say *"log lunch: chicken caesar salad and a flat white"* — Claude estimates it (a dish with
+its ingredients, like the app's own AI) and it appears in the app on your phone within seconds.
+
+It's a small local connector (an MCP server) that uses the same encrypted sync as your devices, so turn on
+**Sync between devices** first.
+
+**Install (Windows or Mac):**
+
+1. Download the extension: in the app, **Settings → Sync between devices → Use with Claude Desktop →
+   Download**, or directly:
+   [`calorie-tracker.mcpb`](https://xaxaxage.github.io/Calorie-tracking-web-app/mcp/calorie-tracker.mcpb).
+2. Open the file with Claude Desktop: double-click it, or drag it into **Settings → Extensions**. Click
+   **Install**.
+3. When it asks for the **sync key**, paste your 12 words (**Show sync key** or **Copy the 12 words** in the app).
+4. Start a new chat and ask about your food. (If Claude doesn't use it, check that **Calorie Tracker** is turned
+   on in **Settings → Extensions**.)
+
+Claude Desktop runs the extension with its own built-in Node.js; nothing else needs installing. To update,
+download and open the file again.
+
+**What Claude can do:** `get_day` (a day by meal, with totals against your goals), `get_summary` (daily
+totals and averages over a period), `search_foods` (your favorites, recent foods, the food list and — when
+asked — Open Food Facts), `log_food` (known foods or estimates; dishes with ingredients), `update_entry`
+(amount, meal, day, name — a dish's ingredients scale with the amount), `delete_entry` and `set_goals`.
+
+**Privacy:** the connector runs on your computer and talks only to the sync relays (and to Open Food Facts
+when Claude searches online). What it reads goes into your conversation with Claude, like anything else you
+share there. Your AI keys are never given to Claude. The sync key is stored by Claude Desktop, marked as
+sensitive.
+
+<details>
+<summary>Without the extension (other MCP apps, Claude Code, manual setup)</summary>
+
+The same server as a single file, for any MCP client. It needs [Node.js](https://nodejs.org) 20 or newer.
+
+1. Download
+   [`calorie-tracker-mcp.mjs`](https://xaxaxage.github.io/Calorie-tracking-web-app/mcp/calorie-tracker-mcp.mjs)
+   (right-click → **Save link as**), e.g. to `C:\Users\<you>\calorie-tracker-mcp.mjs`.
+2. Claude Desktop: **Settings → Developer → Edit Config** opens `%APPDATA%\Claude\claude_desktop_config.json`
+   (on a Mac `~/Library/Application Support/Claude/claude_desktop_config.json`). Add:
+
+   ```json
+   {
+     "mcpServers": {
+       "calorie-tracker": {
+         "command": "node",
+         "args": ["C:\\Users\\<you>\\calorie-tracker-mcp.mjs"],
+         "env": { "SYNC_KEY": "your twelve words here" }
+       }
+     }
+   }
+   ```
+
+   Then quit Claude Desktop completely (also from the tray icon) and open it again.
+3. Claude Code: `claude mcp add calorie-tracker -e SYNC_KEY="your twelve words here" -- node /path/to/calorie-tracker-mcp.mjs`
+
+Optional: `RELAYS` (space- or comma-separated `wss://` URLs) to use other relays than the app's defaults.
+
+</details>
+
 ## Appearance and humor
 
 **Settings → Appearance** has the palettes. Tap one and the whole app changes at once. Palettes are saved per
@@ -177,7 +241,7 @@ Requires Node.js 22.
 npm install
 npm run dev        # local dev server
 npm test           # unit tests (Vitest)
-npm run build      # type-check and build to dist/
+npm run build      # type-check and build to dist/ (the app, plus the Claude Desktop extension in dist/mcp/)
 npm run preview    # serve the production build
 ```
 
@@ -201,6 +265,7 @@ src/
                      router, Open Food Facts client, barcode scanner, textmatch (offline describe)
   lib/ai/            Gemini and Claude estimates for photos and descriptions
   lib/sync/          device sync: sync key and encryption, weekly parts and merging, relay engine
+mcp/                 Claude Desktop connector: MCP tools, and sync without a browser (built by vite.mcp.config.ts)
 tests/               unit tests
 ```
 

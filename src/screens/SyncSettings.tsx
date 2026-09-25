@@ -243,7 +243,29 @@ export function SyncSettings() {
         </>
       )}
 
-      <details class="relays">
+      <details class="fold claude-desktop">
+        <summary>Use with Claude Desktop</summary>
+        <p class="field-hint">
+          Ask Claude on your computer what you ate or how the week went, or log a meal by describing it. It uses this same
+          log, through sync.
+        </p>
+        <ol class="steps body-text">
+          <li>
+            <a href="./mcp/calorie-tracker.mcpb" download="calorie-tracker.mcpb">
+              Download the Claude Desktop extension
+            </a>
+          </li>
+          <li>Open the file with Claude Desktop (double-click it, or drag it into Settings → Extensions) and install.</li>
+          <li>When it asks for the sync key, paste your 12 words.</li>
+        </ol>
+        {config && (
+          <button type="button" class="btn-secondary" onClick={() => copy(config.phrase)}>
+            Copy the 12 words
+          </button>
+        )}
+      </details>
+
+      <details class="fold relays">
         <summary>Relays ({config?.relays.length ?? 0})</summary>
         <p class="field-hint">
           Free public Nostr relays that pass the encrypted data between your devices. One per line; every device should

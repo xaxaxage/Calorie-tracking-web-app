@@ -845,12 +845,12 @@
     opacity: 0.3;
   }
 }
-.relays {
+.fold {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.relays summary {
+.fold summary {
   min-height: 36px;
   display: flex;
   align-items: center;
@@ -859,8 +859,19 @@
   color: var(--teal);
   cursor: pointer;
 }
-.relays[open] > * + * {
+.fold[open] > * + * {
   margin-top: 10px;
+}
+.steps {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.steps a {
+  color: var(--teal);
+  font-weight: 700;
 }
 
 /* ── Barcode scanner ──────────────────────────────────────────────────── */

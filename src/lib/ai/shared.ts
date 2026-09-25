@@ -107,7 +107,7 @@ export function withPropertyOrdering(schema: unknown): unknown {
 const mapValues = (o: unknown, f: (v: unknown) => unknown) =>
   Object.fromEntries(Object.entries(o as Record<string, unknown>).map(([k, v]) => [k, f(v)]));
 
-const COMPONENTS_HINT = `When an item is a composed dish — a burger, sandwich, wrap, salad, bowl, pasta with sauce, pizza, curry, stir-fry, soup and the like — keep it as one item and list its main components in "components" (bread, patty, cheese, sauce, oil, rice, vegetables…), each with its own grams and nutrition per 100 g; the item's grams are then their total. People adjust these components afterwards, so include hidden calories such as cooking oil, butter, dressing and sauce as their own components. For a single food or a packaged product, leave "components" empty.`;
+export const COMPONENTS_HINT = `When an item is a composed dish — a burger, sandwich, wrap, salad, bowl, pasta with sauce, pizza, curry, stir-fry, soup and the like — keep it as one item and list its main components in "components" (bread, patty, cheese, sauce, oil, rice, vegetables…), each with its own grams and nutrition per 100 g; the item's grams are then their total. People adjust these components afterwards, so include hidden calories such as cooking oil, butter, dressing and sauce as their own components. For a single food or a packaged product, leave "components" empty.`;
 
 export const PHOTO_PROMPT = `This photo was taken by someone logging a meal in their calorie tracker. Identify each distinct food or drink in it and estimate how much is there, so they can log it.
 

@@ -28,13 +28,15 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // Downloads for other apps (the Claude Desktop extension) always come fresh from the server.
+  if (url.pathname.includes('/mcp/')) return;
 
   if (request.mode === 'navigate') {
     // Network first for the page itself so updates arrive; cached copy when offline.
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response.ok) {
+          if (response.ok && (response.headers.get('content-type') || '').includes('text/html')) {
             const copy = response.clone();
             caches.open(CACHE).then((cache) => cache.put('./', copy));
           }
