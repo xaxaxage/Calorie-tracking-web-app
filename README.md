@@ -24,6 +24,11 @@ barcode scanner, photo estimate and quick add.
   AI estimates any food or dish, amounts included.
 - **Photo estimate** – snap your plate; the AI identifies each item and estimates its weight and
   nutrition. Adjust the grams, then add everything at once. Needs an AI key (a free Gemini key works).
+  Add a note for what the photo can't show ("fried in butter, I ate half") — or type the description first in
+  Add food and tap **Add a photo too** — and both go to the AI together.
+- **Correct the AI** – under any AI estimate, **Something off?** takes a correction in your own words ("it's
+  brown rice, about 180 g", "no oil", "the drink is Coke Zero"). The AI updates the list, keeping the amounts you
+  changed and the items you removed; corrections add up, and **Undo** goes back one step.
 - **Dishes with ingredients** – a dish (pizza, burrito, a bowl, your own recipe) is made of ingredients you
   control: change any amount with ± or by typing, remove one (with undo), add one from the food list, Open Food
   Facts or as a custom item, or scale the whole portion (½×, 2×, "1 slice"…). Nutrition is always the sum of the

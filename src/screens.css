@@ -1895,3 +1895,22 @@
 .change-key {
   padding-top: 4px;
 }
+
+/* ── Correcting an AI estimate ────────────────────────────────────────── */
+.said-static {
+  margin: 0;
+}
+.correction .textarea {
+  min-height: 72px;
+}
+.correction-history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}

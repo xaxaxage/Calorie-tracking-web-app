@@ -24,7 +24,22 @@ export interface PreparedImage {
   base64: string;
 }
 
-export type EstimateInput = { kind: 'photo'; image: PreparedImage } | { kind: 'text'; text: string };
+/** A request to fix an estimate: what it is now and what the person said is wrong. */
+export interface Correction {
+  /** The estimate as it stands, with the person's own changes (amounts, removed parts). */
+  current: EstimatedItem[];
+  /** What the person took out ("Rice", "Butter in Toast"), so it isn't put back. */
+  removed: string[];
+  /** What they asked to change, oldest first; the last one is new. */
+  requests: string[];
+}
+
+export type EstimateInput =
+  | { kind: 'photo'; image: PreparedImage; note?: string; correction?: Correction }
+  | { kind: 'text'; text: string; correction?: Correction };
+
+export const MAX_NOTE = 1000;
+export const MAX_CORRECTION = 500;
 
 /** An error whose message can be shown to the user as is. */
 export class AiError extends Error {
@@ -122,6 +137,71 @@ Only count what belongs to this meal: ignore packaging, other people's plates an
 ${COMPONENTS_HINT}
 
 If there is no food or drink in the photo, return an empty list.`;
+
+/** The photo prompt, with what the person wrote about it. */
+export function photoPrompt(note?: string): string {
+  const clean = note?.trim().slice(0, MAX_NOTE);
+  if (!clean) return PHOTO_PROMPT;
+  return `${PHOTO_PROMPT}
+
+The person also wrote about this meal. Use it for what a photo can't show — how it was cooked, hidden ingredients, brands, exact amounts, what they didn't eat — and where it disagrees with what you see, go with what they wrote:
+<note>
+${clean}
+</note>`;
+}
+
+const r1 = (n: number) => Math.round(n * 10) / 10;
+
+function partJson(p: EstimatedPart) {
+  return {
+    grams: r1(p.grams),
+    kcal_per_100g: r1(p.per100.kcal),
+    protein_per_100g: r1(p.per100.p),
+    carbs_per_100g: r1(p.per100.c),
+    fat_per_100g: r1(p.per100.f),
+  };
+}
+
+/** The current estimate in the reply's own shape, so the model can return it with only the fixes applied. */
+function estimateJson(items: EstimatedItem[], photo: boolean): string {
+  const list = items.map((it) => ({
+    name: it.name,
+    components: (it.components ?? []).map((c) => ({ name: c.name, ...partJson(c) })),
+    ...partJson(it),
+    ...(photo ? { x: r1(it.x ?? 0.5), y: r1(it.y ?? 0.5) } : {}),
+  }));
+  return JSON.stringify({ items: list });
+}
+
+/** Asks for the estimate again with the person's correction applied. */
+export function correctionPrompt(c: Correction, photo: boolean): string {
+  const requests = c.requests.map((r) => r.trim().slice(0, MAX_CORRECTION)).filter(Boolean).slice(-5);
+  const latest = requests[requests.length - 1] ?? '';
+  const earlier = requests.slice(0, -1);
+  return `
+
+You already made an estimate for this, and the person wants something corrected. This is the estimate as it stands now, including amounts they changed themselves — keep their changes unless the correction says otherwise:
+<current_estimate>
+${estimateJson(c.current, photo)}
+</current_estimate>${
+    c.removed.length
+      ? `\n\nThey removed these, so leave them out unless the correction brings them back: ${c.removed.slice(0, 30).join(', ')}.`
+      : ''
+  }${earlier.length ? `\n\nEarlier corrections, which still apply:\n${earlier.map((r) => `- ${r}`).join('\n')}` : ''}
+
+Their correction:
+<correction>
+${latest}
+</correction>
+
+Apply the correction and return the complete updated list — every item, not only the ones that changed. Change only what the correction affects and keep everything else as it is. When they name a different food, way of cooking or amount, update that item's name, grams, nutrition per 100 g and components to match; when they mention something that isn't in the list, add it; when they say something isn't there, remove it.`;
+}
+
+/** The full prompt for a request. */
+export function promptFor(input: EstimateInput): string {
+  const base = input.kind === 'photo' ? photoPrompt(input.note) : textPrompt(input.text);
+  return input.correction ? base + correctionPrompt(input.correction, input.kind === 'photo') : base;
+}
 
 export function textPrompt(description: string): string {
   return `Someone logging food in their calorie tracker described what they ate. Turn the description into separate items they can log.

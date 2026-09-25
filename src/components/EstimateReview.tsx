@@ -8,7 +8,7 @@ import { finishFlow, href } from '../lib/router';
 import { showToast } from '../lib/toast';
 import { toastNote } from '../lib/humor';
 import { AmountInput } from './AmountInput';
-import type { EstimatedItem } from '../lib/ai/shared';
+import { MAX_CORRECTION, type EstimatedItem } from '../lib/ai/shared';
 import { ChevronRight, Close } from './Icons';
 
 export interface ReviewPart {
@@ -25,6 +25,9 @@ export interface ReviewItem {
   food?: Food;
   /** The parts of a dish, from the AI. */
   components?: ReviewPart[];
+  /** Where it is in the photo (photo estimates). */
+  x?: number;
+  y?: number;
 }
 
 /** An AI estimate as a review item, dish components included. */
@@ -34,6 +37,8 @@ export function toReviewItem(it: EstimatedItem): ReviewItem {
     amount: it.grams,
     per100: it.per100,
     components: it.components?.map((c) => ({ name: c.name, amount: c.grams, per100: c.per100 })),
+    x: it.x,
+    y: it.y,
   };
 }
 
@@ -79,6 +84,104 @@ const partsNow = (row: Row): Ingredient[] =>
 const rowAmount = (row: Row) => (row.parts ? dishTotals(partsNow(row)).amount : row.amount);
 
 /**
+ * The estimate as the person has it now — their amounts, without what they
+ * removed — for asking the AI to correct it without undoing their changes.
+ */
+function currentEstimate(items: ReviewItem[], rows: Row[]): { current: EstimatedItem[]; removed: string[] } {
+  const current: EstimatedItem[] = [];
+  const removed: string[] = [];
+  items.forEach((it, i) => {
+    const row = rows[i];
+    if (rowAmount(row) <= 0) {
+      removed.push(it.name);
+      return;
+    }
+    const place = it.x !== undefined ? { x: it.x, y: it.y } : {};
+    if (!row.parts) {
+      current.push({ name: it.name, grams: row.amount, per100: it.per100, ...place });
+      return;
+    }
+    const parts = partsNow(row).filter((p) => p.amount > 0);
+    const kept = new Set(parts.map((p) => p.name));
+    for (const c of it.components ?? []) if (!kept.has(c.name)) removed.push(`${c.name} in ${it.name}`);
+    const t = dishTotals(parts);
+    const per = (v: number) => (t.amount > 0 ? Math.round((v * 1000) / t.amount) / 10 : 0);
+    current.push({
+      name: it.name,
+      grams: t.amount,
+      per100: { kcal: per(t.kcal), p: per(t.p), c: per(t.c), f: per(t.f) },
+      components: parts.map((p) => ({ name: p.name, grams: p.amount, per100: p.per100 })),
+      ...place,
+    });
+  });
+  return { current, removed };
+}
+
+export interface CorrectionControls {
+  /** Who does the correcting, e.g. "Gemini". */
+  provider: string;
+  /** Corrections already applied, oldest first. */
+  history: string[];
+  busy: boolean;
+  progress?: string;
+  error?: string;
+  onSubmit: (request: string, current: EstimatedItem[], removed: string[]) => void;
+}
+
+/** "Something off?" — tell the AI what to fix, in words. */
+function CorrectionBox({ controls, items, rows }: { controls: CorrectionControls; items: ReviewItem[]; rows: Row[] }) {
+  const [text, setText] = useState('');
+  const request = text.trim();
+  const submit = (e: Event) => {
+    e.preventDefault();
+    if (!request || controls.busy) return;
+    const { current, removed } = currentEstimate(items, rows);
+    controls.onSubmit(request, current, removed);
+  };
+  return (
+    <form class="card stack-10 correction" onSubmit={submit}>
+      <label for="correction" class="field-label">
+        Something off? Tell {controls.provider}
+      </label>
+      {controls.history.length > 0 && (
+        <ul class="correction-history" aria-label="Your corrections so far">
+          {controls.history.map((h) => (
+            <li>“{h}”</li>
+          ))}
+        </ul>
+      )}
+      <textarea
+        id="correction"
+        class="input textarea"
+        rows={2}
+        maxLength={MAX_CORRECTION}
+        placeholder="e.g. It's brown rice, about 150 g. No oil. The drink is Coke Zero."
+        value={text}
+        disabled={controls.busy}
+        onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) submit(e);
+        }}
+      />
+      {controls.error && <div class="notice plain">{controls.error}</div>}
+      {controls.busy ? (
+        <div class="sheet-status" role="status">
+          <span class="spinner" />
+          <span class="loading-text">
+            <span>{controls.progress ?? `${controls.provider} is updating the estimate…`}</span>
+          </span>
+        </div>
+      ) : (
+        <button type="submit" class="btn-secondary" disabled={!request}>
+          Fix the estimate
+        </button>
+      )}
+      <span class="field-hint">Your own changes to the amounts are kept.</span>
+    </form>
+  );
+}
+
+/**
  * Editable list of estimated items with totals and an "Add all" button.
  * Dishes can be opened to adjust or remove their ingredients.
  * Shared by the photo and describe screens.
@@ -92,6 +195,7 @@ export function EstimateReview({
   note,
   numbered,
   secondary,
+  correction,
 }: {
   items: ReviewItem[];
   meal: MealId;
@@ -101,6 +205,8 @@ export function EstimateReview({
   note: string;
   numbered?: boolean;
   secondary: { label: string; onClick: () => void };
+  /** Let the person ask the AI to fix the estimate. */
+  correction?: CorrectionControls;
 }) {
   const [rows, setRows] = useState<Row[]>(() => items.map(startRow));
   const update = (i: number, next: Row) => setRows((all) => all.map((r, j) => (j === i ? next : r)));
@@ -237,6 +343,8 @@ export function EstimateReview({
         </span>
         <span class="strip-value kcal num">{fmtKcal(totals.kcal)} kcal</span>
       </div>
+
+      {correction && <CorrectionBox controls={correction} items={items} rows={rows} />}
 
       <div class="footer">
         <div class="footer-inner">

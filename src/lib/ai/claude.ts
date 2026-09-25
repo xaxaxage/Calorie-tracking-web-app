@@ -3,10 +3,9 @@ import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema';
 import {
   AiError,
   normalizeItems,
-  PHOTO_PROMPT,
   PHOTO_SCHEMA,
+  promptFor,
   TEXT_SCHEMA,
-  textPrompt,
   type EstimatedItem,
   type EstimateInput,
 } from './shared';
@@ -41,9 +40,9 @@ export async function estimateWithClaude(
     input.kind === 'photo'
       ? [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: input.image.base64 } },
-          { type: 'text', text: PHOTO_PROMPT },
+          { type: 'text', text: promptFor(input) },
         ]
-      : [{ type: 'text', text: textPrompt(input.text) }];
+      : [{ type: 'text', text: promptFor(input) }];
 
   let message;
   try {

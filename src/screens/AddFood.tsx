@@ -19,6 +19,7 @@ import { Crossfade } from '../components/Crossfade';
 import { quip } from '../lib/humor';
 import { aiReady, providerName } from '../lib/ai';
 import { ProviderLine } from '../components/AiProvider';
+import { AddPhotoButton } from '../components/AddPhotoButton';
 import { Barcode, Bolt, Camera, Chat, Check, ChevronRight, Close, Copy, Pencil, Plus } from '../components/Icons';
 
 type Tab = 'recent' | 'favorites';
@@ -277,6 +278,7 @@ export function AddFood({ meal, date, initialQuery, initialTab }: { meal: MealId
                 <button type="button" class="btn-primary" onClick={() => describe('ai')}>
                   Estimate with {providerName(data.settings)}
                 </button>
+                <AddPhotoButton meal={meal} date={date} note={q} />
                 <button type="button" class="btn-secondary" onClick={() => describe('list')}>
                   Match from food list (offline)
                 </button>

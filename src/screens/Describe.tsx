@@ -5,17 +5,29 @@ import { FOODS } from '../lib/foods';
 import { matchDescription } from '../lib/textmatch';
 import { getData, recentFoods, useData } from '../lib/store';
 import { useLoadingQuip } from '../lib/humor';
-import { AiError } from '../lib/ai/shared';
+import { AiError, type EstimatedItem } from '../lib/ai/shared';
+import { showToast } from '../lib/toast';
 import { ProviderLine, UseGeminiButton } from '../components/AiProvider';
+import { AddPhotoButton } from '../components/AddPhotoButton';
 import { goBack, href, navigate } from '../lib/router';
 import { EstimateReview, toReviewItem, type ReviewItem } from '../components/EstimateReview';
 import { MealPicker } from '../components/Common';
 import { ChevronLeft } from '../components/Icons';
 
-type Phase =
-  | { state: 'edit'; message?: string; fix?: 'use-gemini' }
-  | { state: 'loading'; progress?: string }
-  | { state: 'done'; via: 'ai' | 'list'; source: string; items: ReviewItem[]; unmatched: string[]; id: number };
+interface Done {
+  state: 'done';
+  via: 'ai' | 'list';
+  source: string;
+  items: ReviewItem[];
+  unmatched: string[];
+  /** Corrections the AI applied so far, oldest first. */
+  corrections: string[];
+  id: number;
+}
+
+type Phase = { state: 'edit'; message?: string; fix?: 'use-gemini' } | { state: 'loading'; progress?: string } | Done;
+
+type Fixing = { busy: boolean; progress?: string; error?: string };
 
 let runId = 0;
 
@@ -38,6 +50,7 @@ export function Describe({
   const ready = aiReady(settings);
   const [text, setText] = useState(initialText);
   const [phase, setPhase] = useState<Phase>({ state: 'edit' });
+  const [fixing, setFixing] = useState<Fixing>({ busy: false });
   const loadingQuip = useLoadingQuip(phase.state === 'loading', 'text');
   const abortRef = useRef<AbortController | null>(null);
 
@@ -76,14 +89,21 @@ export function Describe({
       source: 'the food list',
       id: ++runId,
       unmatched,
+      corrections: [],
       items: matches.map((m) => ({ name: m.food.name, amount: m.amount, per100: m.food.per100, food: m.food })),
     });
   };
 
-  const askAi = async () => {
+  const restart = () => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    return controller;
+  };
+
+  const askAi = async () => {
+    const controller = restart();
+    setFixing({ busy: false });
     setPhase({ state: 'loading' });
     try {
       // Read settings now, not from the render: the provider may have just been switched.
@@ -104,6 +124,7 @@ export function Describe({
         source,
         id: ++runId,
         unmatched: [],
+        corrections: [],
         items: items.map(toReviewItem),
       });
     } catch (err) {
@@ -117,6 +138,40 @@ export function Describe({
     }
   };
 
+  /** Ask the AI to fix its estimate, keeping the person's own changes. */
+  const correct = async (done: Done, request: string, current: EstimatedItem[], removed: string[]) => {
+    const controller = restart();
+    const requests = [...done.corrections, request];
+    setFixing({ busy: true });
+    try {
+      const { items, source } = await estimate(
+        getData().settings,
+        { kind: 'text', text: trimmed.slice(0, 2000), correction: { current, removed, requests } },
+        controller.signal,
+        (progress) => !controller.signal.aborted && setFixing({ busy: true, progress }),
+      );
+      if (controller.signal.aborted) return;
+      if (items.length === 0) {
+        setFixing({ busy: false, error: 'That correction left nothing to log. Try saying it differently.' });
+        return;
+      }
+      setFixing({ busy: false });
+      setPhase({ ...done, source, items: items.map(toReviewItem), corrections: requests, id: ++runId });
+      showToast('Estimate updated', {
+        label: 'Undo',
+        // Back to the list as it was, the person's own changes included.
+        run: () => {
+          setFixing({ busy: false });
+          setPhase({ ...done, items: current.map(toReviewItem), id: ++runId });
+        },
+      });
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      console.error(err);
+      setFixing({ busy: false, error: (err as Error).message || 'Something went wrong. Try again.' });
+    }
+  };
+
   // Arriving from Add food with the text already typed: no second tap needed.
   useEffect(() => {
     if (!trimmed || !autoRun) return;
@@ -124,6 +179,12 @@ export function Describe({
     else matchFromList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const backToEdit = () => {
+    abortRef.current?.abort();
+    setFixing({ busy: false });
+    setPhase({ state: 'edit' });
+  };
 
   const done = phase.state === 'done' ? phase : undefined;
 
@@ -139,7 +200,7 @@ export function Describe({
 
       {done ? (
         <>
-          <button type="button" class="said" onClick={() => setPhase({ state: 'edit' })} aria-label="Edit description">
+          <button type="button" class="said" onClick={backToEdit} aria-label="Edit description">
             <span class="said-text">“{trimmed}”</span>
             <span class="said-edit">Edit</span>
           </button>
@@ -161,10 +222,20 @@ export function Describe({
             title={`${done.items.length} ${done.items.length === 1 ? 'item' : 'items'}`}
             note={
               done.via === 'ai'
-                ? `Estimated by ${done.source} — check the amounts.`
+                ? `Estimated by ${done.source}${done.corrections.length ? ', with your corrections' : ''} — check the amounts.`
                 : 'Matched from the food list, free and offline — check the amounts.'
             }
-            secondary={{ label: 'Edit', onClick: () => setPhase({ state: 'edit' }) }}
+            secondary={{ label: 'Edit', onClick: backToEdit }}
+            correction={
+              done.via === 'ai'
+                ? {
+                    provider: providerName(settings),
+                    history: done.corrections,
+                    ...fixing,
+                    onSubmit: (request, current, removed) => correct(done, request, current, removed),
+                  }
+                : undefined
+            }
           />
         </>
       ) : (
@@ -206,6 +277,7 @@ export function Describe({
               <button type="button" class="btn-primary" disabled={!trimmed} onClick={askAi}>
                 Estimate with {providerName(settings)}
               </button>
+              <AddPhotoButton meal={meal} date={date} note={trimmed} />
               <button type="button" class="btn-secondary" disabled={!trimmed} onClick={matchFromList}>
                 Match from food list (offline)
               </button>

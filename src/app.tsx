@@ -135,7 +135,7 @@ export function App() {
       screen = <Scan meal={meal} date={date} />;
       break;
     case 'photo':
-      screen = <Photo meal={meal} date={date} />;
+      screen = <Photo meal={meal} date={date} initialNote={query.get('note') ?? ''} />;
       break;
     case 'describe':
       screen = (

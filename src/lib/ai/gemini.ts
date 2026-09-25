@@ -4,10 +4,9 @@ import {
   AiError,
   normalizeItems,
   parseJsonReply,
-  PHOTO_PROMPT,
   PHOTO_SCHEMA,
+  promptFor,
   TEXT_SCHEMA,
-  textPrompt,
   withPropertyOrdering,
   type EstimatedItem,
   type EstimateInput,
@@ -95,7 +94,7 @@ function jsonShape(photo: boolean): string {
 
 async function callModel(ai: GoogleGenAI, model: string, input: EstimateInput, signal?: AbortSignal) {
   const photo = input.kind === 'photo';
-  const prompt = (photo ? PHOTO_PROMPT : textPrompt(input.text)) + (isGemma(model) ? jsonShape(photo) : '');
+  const prompt = promptFor(input) + (isGemma(model) ? jsonShape(photo) : '');
   const parts = photo
     ? [{ inlineData: { mimeType: 'image/jpeg', data: input.image.base64 } }, { text: prompt }]
     : [{ text: prompt }];

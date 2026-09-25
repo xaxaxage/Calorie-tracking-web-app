@@ -4,45 +4,82 @@ import type { EstimatedItem, PreparedImage } from '../lib/ai';
 import { aiReady, estimate, prepareImage, providerName } from '../lib/ai';
 import { getData, useData } from '../lib/store';
 import { quip, useLoadingQuip } from '../lib/humor';
-import { AiError } from '../lib/ai/shared';
+import { AiError, MAX_NOTE } from '../lib/ai/shared';
+import { takeHandedOffPhoto } from '../lib/photoHandoff';
+import { showToast } from '../lib/toast';
 import { ProviderLine, UseGeminiButton } from '../components/AiProvider';
 import { goBack, href } from '../lib/router';
 import { EstimateReview, toReviewItem } from '../components/EstimateReview';
 import { Camera, ChevronLeft } from '../components/Icons';
 
+interface Done {
+  state: 'done';
+  image: PreparedImage;
+  note: string;
+  items: EstimatedItem[];
+  source: string;
+  /** Corrections applied so far, oldest first. */
+  corrections: string[];
+  id: number;
+}
+
 type Phase =
   | { state: 'pick'; message?: string }
   | { state: 'analyzing'; image: PreparedImage; progress?: string }
-  | { state: 'done'; image: PreparedImage; items: EstimatedItem[]; source: string; id: number }
+  | Done
   | { state: 'error'; image: PreparedImage; message: string; fix?: 'use-gemini' };
+
+type Fixing = { busy: boolean; progress?: string; error?: string };
 
 let runId = 0;
 
-export function Photo({ meal, date }: { meal: MealId; date: string }) {
+export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: string; initialNote?: string }) {
   const data = useData();
   const settings = data.settings;
   const ready = aiReady(settings);
   const [phase, setPhase] = useState<Phase>({ state: 'pick' });
+  const [note, setNote] = useState(initialNote);
+  const [fixing, setFixing] = useState<Fixing>({ busy: false });
   const loadingQuip = useLoadingQuip(phase.state === 'analyzing', 'photo');
   const cameraInput = useRef<HTMLInputElement>(null);
   const libraryInput = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // The note as typed right now, for estimates started from a file picker callback.
+  const noteRef = useRef(note);
+  noteRef.current = note;
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const analyze = async (image: PreparedImage) => {
+  // Keep the note in the URL so it survives a trip to Settings and back.
+  useEffect(() => {
+    history.replaceState(history.state, '', `#${href('/photo', { meal, date, note: note.trim() || undefined })}`);
+  }, [meal, date, note]);
+
+  const restart = () => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    return controller;
+  };
+
+  const analyze = async (image: PreparedImage) => {
+    const controller = restart();
+    const noteNow = noteRef.current.trim();
+    setFixing({ busy: false });
     setPhase({ state: 'analyzing', image });
     try {
       // Read settings now, not from the render: the provider may have just been switched.
       const current = getData().settings;
-      const { items, source } = await estimate(current, { kind: 'photo', image }, controller.signal, (progress) => {
-        if (!controller.signal.aborted) setPhase({ state: 'analyzing', image, progress });
-      });
+      const { items, source } = await estimate(
+        current,
+        { kind: 'photo', image, note: noteNow || undefined },
+        controller.signal,
+        (progress) => {
+          if (!controller.signal.aborted) setPhase({ state: 'analyzing', image, progress });
+        },
+      );
       if (controller.signal.aborted) return;
-      setPhase({ state: 'done', image, items, source, id: ++runId });
+      setPhase({ state: 'done', image, note: noteNow, items, source, corrections: [], id: ++runId });
     } catch (err) {
       if (controller.signal.aborted) return;
       console.error(err);
@@ -55,10 +92,41 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
     }
   };
 
-  const onFile = async (input: HTMLInputElement) => {
-    const file = input.files?.[0];
-    input.value = '';
-    if (!file) return;
+  /** Ask the AI to fix the estimate, keeping the person's own changes. */
+  const correct = async (done: Done, request: string, current: EstimatedItem[], removed: string[]) => {
+    const controller = restart();
+    const requests = [...done.corrections, request];
+    setFixing({ busy: true });
+    try {
+      const { items, source } = await estimate(
+        getData().settings,
+        { kind: 'photo', image: done.image, note: done.note || undefined, correction: { current, removed, requests } },
+        controller.signal,
+        (progress) => !controller.signal.aborted && setFixing({ busy: true, progress }),
+      );
+      if (controller.signal.aborted) return;
+      if (items.length === 0) {
+        setFixing({ busy: false, error: 'That correction left nothing to log. Try saying it differently.' });
+        return;
+      }
+      setFixing({ busy: false });
+      setPhase({ ...done, items, source, corrections: requests, id: ++runId });
+      showToast('Estimate updated', {
+        label: 'Undo',
+        // Back to the list as it was, the person's own changes included.
+        run: () => {
+          setFixing({ busy: false });
+          setPhase({ ...done, items: current, id: ++runId });
+        },
+      });
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      console.error(err);
+      setFixing({ busy: false, error: (err as Error).message || 'Something went wrong. Try again.' });
+    }
+  };
+
+  const onBlob = async (file: Blob) => {
     try {
       await analyze(await prepareImage(file));
     } catch (err) {
@@ -66,8 +134,22 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
     }
   };
 
+  const onFile = (input: HTMLInputElement) => {
+    const file = input.files?.[0];
+    input.value = '';
+    if (file) onBlob(file);
+  };
+
+  // A photo picked on Add food or Describe, with what was typed there as the note.
+  useEffect(() => {
+    const handed = takeHandedOffPhoto();
+    if (handed && ready) onBlob(handed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const retake = () => {
     abortRef.current?.abort();
+    setFixing({ busy: false });
     setPhase({ state: 'pick' });
     cameraInput.current?.click();
   };
@@ -148,9 +230,24 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
         ) : (
           <>
             {phase.message && <div class="notice plain">{phase.message}</div>}
+            <div class="field">
+              <label for="photo-note" class="field-label">
+                Anything the photo doesn't show? <span class="muted">(optional)</span>
+              </label>
+              <textarea
+                id="photo-note"
+                class="input textarea"
+                rows={2}
+                maxLength={MAX_NOTE}
+                placeholder="e.g. fried in butter, the drink is Coke Zero, I ate half"
+                value={note}
+                onInput={(e) => setNote((e.target as HTMLTextAreaElement).value)}
+              />
+            </div>
             <p class="lede">
-              Snap your plate from above with everything in view. {providerName(settings)} lists what it sees and estimates
-              each portion — you can adjust the grams before adding.
+              Snap your plate from above with everything in view. {providerName(settings)} lists what it sees
+              {note.trim() ? ', using your note,' : ''} and estimates each portion — you can adjust the grams or tell it
+              what's off before adding.
             </p>
             <div class="button-pair">
               <button type="button" class="btn-secondary" onClick={() => libraryInput.current?.click()}>
@@ -183,6 +280,12 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
         </>
       )}
 
+      {done?.note && (
+        <p class="said said-static">
+          <span class="said-text">“{done.note}”</span>
+        </p>
+      )}
+
       {done && done.items.length === 0 && (
         <>
           <div class="stack-2 pad-4">
@@ -206,8 +309,14 @@ export function Photo({ meal, date }: { meal: MealId; date: string }) {
           source="photo"
           numbered
           title={`${done.items.length} ${done.items.length === 1 ? 'item' : 'items'} found`}
-          note={`Estimated by ${done.source} — check the portions. Set 0 g to leave an item out.`}
+          note={`Estimated by ${done.source}${done.corrections.length ? ', with your corrections' : ''} — check the portions. Set 0 g to leave an item out.`}
           secondary={{ label: 'Retake', onClick: retake }}
+          correction={{
+            provider: providerName(settings),
+            history: done.corrections,
+            ...fixing,
+            onSubmit: (request, current, removed) => correct(done, request, current, removed),
+          }}
         />
       )}
     </main>
