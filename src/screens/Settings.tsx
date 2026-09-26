@@ -18,6 +18,7 @@ import { showToast } from '../lib/toast';
 import { ChevronLeft, ChevronRight } from '../components/Icons';
 import { GEMINI_SHORTCUTS, listGeminiModels } from '../lib/ai';
 import { tally, useUsage } from '../lib/ai/usage';
+import { fmtBytes, listPhotos, totalBytes, usePhotos } from '../lib/photos';
 import { SyncSettings } from './SyncSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { quip } from '../lib/humor';
@@ -254,7 +255,42 @@ function LoggingSettings() {
           </span>
         </span>
       </label>
+      <label class="toggle-row switch-row">
+        <input
+          type="checkbox"
+          role="switch"
+          class="switch"
+          id="save-photos"
+          checked={settings.savePhotos}
+          onChange={(e) => updateSettings({ savePhotos: (e.target as HTMLInputElement).checked })}
+        />
+        <span>
+          <strong>Keep meal photos</strong>
+          <span class="muted">
+            Every photo you take for an estimate is saved on this phone with its meal. They stay on this device — not synced
+            or in backups. To put one in your Photos app, tap <em>Save to Photos</em> on it.
+          </span>
+        </span>
+      </label>
+      <PhotosLink />
     </section>
+  );
+}
+
+/** How many meal photos this phone keeps, linking to them. */
+function PhotosLink() {
+  const photos = usePhotos(listPhotos, []);
+  if (!photos || photos.length === 0) return null;
+  return (
+    <a class="usage-link" href="#/photos">
+      <span class="row-main">
+        <span class="row-title small">Meal photos</span>
+        <span class="row-sub">
+          {photos.length} {photos.length === 1 ? 'photo' : 'photos'} · {fmtBytes(totalBytes(photos))}
+        </span>
+      </span>
+      <ChevronRight size={18} />
+    </a>
   );
 }
 

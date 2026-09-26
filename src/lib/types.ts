@@ -108,6 +108,8 @@ export interface Settings {
   dishBuilder: boolean;
   /** Gentle motion: screens, numbers and lists animate (also off when the system asks for reduced motion). */
   animations: boolean;
+  /** Keep the photos taken for estimates on this device, with their meal. */
+  savePhotos: boolean;
 }
 
 /** The colors a palette is built from, as #rrggbb. */

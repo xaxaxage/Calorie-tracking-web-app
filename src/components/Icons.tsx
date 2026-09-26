@@ -176,3 +176,9 @@ export const ComputerIcon = (p: IconProps) => (
     <path d="M8 20h8M12 16v4" />
   </Svg>
 );
+
+export const Download = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+  </Svg>
+);

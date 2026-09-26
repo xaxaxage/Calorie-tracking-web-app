@@ -19,6 +19,7 @@ import { Settings } from './screens/Settings';
 import { PaletteEditor } from './screens/PaletteEditor';
 import { DishEditor } from './screens/DishEditor';
 import { AiUsage } from './screens/AiUsage';
+import { MealPhotos } from './screens/MealPhotos';
 import { isDish } from './lib/dish';
 import { builtinFood } from './lib/foods';
 import { ChevronLeft } from './components/Icons';
@@ -153,6 +154,9 @@ export function App() {
       break;
     case 'usage':
       screen = <AiUsage />;
+      break;
+    case 'photos':
+      screen = <MealPhotos />;
       break;
     case 'palette': {
       const id = segments[1] ?? 'new';

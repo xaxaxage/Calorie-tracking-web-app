@@ -6,11 +6,12 @@ import { getData, useData } from '../lib/store';
 import { quip, useLoadingQuip } from '../lib/humor';
 import { AiError, MAX_NOTE } from '../lib/ai/shared';
 import { takeHandedOffPhoto } from '../lib/photoHandoff';
+import { dataUrlToBlob, saveToPhotos, savePhoto } from '../lib/photos';
 import { showToast } from '../lib/toast';
 import { ProviderLine, UseGeminiButton } from '../components/AiProvider';
 import { goBack, href } from '../lib/router';
 import { EstimateReview, toReviewItem } from '../components/EstimateReview';
-import { Camera, ChevronLeft } from '../components/Icons';
+import { Camera, ChevronLeft, Download } from '../components/Icons';
 
 interface Done {
   state: 'done';
@@ -126,12 +127,32 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
     }
   };
 
+  /** Keep the photo on this phone with its meal (Settings → Logging → Keep meal photos). */
+  const keep = (image: PreparedImage) => {
+    if (!getData().settings.savePhotos) return;
+    savePhoto({ date, meal, blob: dataUrlToBlob(image.dataUrl), note: noteRef.current.trim() || undefined }).catch((err) => {
+      console.error('Could not keep the photo', err);
+      showToast("Couldn't keep the photo on this phone — its storage may be full.");
+    });
+  };
+
   const onBlob = async (file: Blob) => {
+    let image: PreparedImage;
     try {
-      await analyze(await prepareImage(file));
+      image = await prepareImage(file);
     } catch (err) {
       setPhase({ state: 'pick', message: (err as Error).message });
+      return;
     }
+    keep(image);
+    await analyze(image);
+  };
+
+  /** Into the Photos app: iPhone's share sheet ("Save Image"), or a download elsewhere. */
+  const toPhotos = (image: PreparedImage) => {
+    saveToPhotos([{ blob: dataUrlToBlob(image.dataUrl), at: Date.now(), date, meal }])
+      .then((how) => how === 'downloaded' && showToast('Photo downloaded'))
+      .catch(() => showToast("Couldn't save the photo."));
   };
 
   const onFile = (input: HTMLInputElement) => {
@@ -190,6 +211,10 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
       {image ? (
         <div class="photo-frame">
           <img src={image.dataUrl} alt="Your meal" />
+          <button type="button" class="photo-save" onClick={() => toPhotos(image)}>
+            <Download size={16} />
+            Save to Photos
+          </button>
           {done?.items.map((it, i) => (
             <span class="marker" style={{ left: `${(it.x ?? 0.5) * 100}%`, top: `${(it.y ?? 0.5) * 100}%` }} aria-hidden="true">
               {i + 1}

@@ -7,6 +7,7 @@ import { goBack, href, navigate } from '../lib/router';
 import { showToast } from '../lib/toast';
 import { toastNote } from '../lib/humor';
 import { ChevronLeft, Plus, Trash } from '../components/Icons';
+import { MealPhotoStrip } from '../components/MealPhotos';
 
 function describe(e: Entry): string {
   const amount = e.amount ? `${fmtGrams(e.amount)} ${e.unit ?? 'g'} · ` : '';
@@ -40,6 +41,8 @@ export function MealDetail({ meal, date }: { meal: MealId; date: string }) {
           <span class="strip-label">{longDate(date)}</span>
           <span class="strip-value num">{fmtKcal(totals.kcal)} kcal</span>
         </div>
+
+        <MealPhotoStrip date={date} meal={meal} />
 
         <div class="list">
           {items.length === 0 ? (

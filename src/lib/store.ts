@@ -42,6 +42,7 @@ export function emptyData(): AppData {
       humor: true,
       dishBuilder: true,
       animations: true,
+      savePhotos: true,
     },
   };
 }
@@ -168,6 +169,7 @@ export function parseData(raw: unknown): AppData {
       humor: r.settings?.humor !== false,
       dishBuilder: r.settings?.dishBuilder !== false,
       animations: r.settings?.animations !== false,
+      savePhotos: r.settings?.savePhotos !== false,
     },
   };
 }
