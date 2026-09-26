@@ -12,11 +12,12 @@ import {
   useData,
 } from '../lib/store';
 import { fmtKcal, kcalFromMacros, parseNumber } from '../lib/nutrition';
-import { todayKey } from '../lib/dates';
+import { toKey, todayKey } from '../lib/dates';
 import { goBack } from '../lib/router';
 import { showToast } from '../lib/toast';
-import { ChevronLeft } from '../components/Icons';
+import { ChevronLeft, ChevronRight } from '../components/Icons';
 import { GEMINI_SHORTCUTS, listGeminiModels } from '../lib/ai';
+import { tally, useUsage } from '../lib/ai/usage';
 import { SyncSettings } from './SyncSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { quip } from '../lib/humor';
@@ -398,7 +399,27 @@ function AiSettings() {
         Keys stay on your devices: with sync on, they reach your other devices encrypted, so you enter them once. They're
         never in backups.
       </p>
+      <UsageLink />
     </section>
+  );
+}
+
+/** Today's AI requests from this device, linking to the full usage screen. */
+function UsageLink() {
+  const { records } = useUsage();
+  const today = todayKey();
+  const t = tally(records.filter((r) => toKey(new Date(r.at)) === today));
+  return (
+    <a class="usage-link" href="#/usage">
+      <span class="row-main">
+        <span class="row-title small">AI usage</span>
+        <span class="row-sub">
+          Today: {t.requests} {t.requests === 1 ? 'request' : 'requests'}
+          {t.failed > 0 ? `, ${t.failed} failed` : ''} · limits and history
+        </span>
+      </span>
+      <ChevronRight size={18} />
+    </a>
   );
 }
 

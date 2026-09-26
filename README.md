@@ -78,6 +78,16 @@ The app can use either AI; pick one in **Settings → AI estimates**:
   to the next one: the newest Flash-Lite and Flash, then other Flash models on your key, then a Gemma model — up
   to five in total. The screen shows which model is being tried and which one answered.
 
+  **Limits are handled carefully:** Google's "limit reached" replies say which limit it was. A model whose
+  **daily** free uses are gone is skipped until Google resets them (midnight in California), so it doesn't cost a
+  failed request on every estimate; a model at its **per-minute** limit is retried after the few seconds Google
+  asks for (up to 15) instead of switching to a lesser model.
+
+  **AI usage** (**Settings → AI estimates → AI usage**) lists every request this device sent: today's count and
+  tokens, requests per model since Google's daily reset with the limits Google has reported ("limit 20 a day",
+  "out of free uses until 09:00", **Try it again now**), the last 7 days, and recent estimates with each request
+  they took (model, result, time, tokens). Kept on the device only.
+
   On the free tier Google may use what you send to improve its products. Free-tier availability depends on your
   country.
 - **Claude (paid)** – needs an Anthropic API key with prepaid credit from
