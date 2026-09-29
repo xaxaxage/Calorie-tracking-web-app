@@ -9,6 +9,7 @@ import { getData, subscribe } from './lib/store';
 import { applyTheme } from './lib/theme';
 import { watchMotion } from './lib/motion';
 import { showToast } from './lib/toast';
+import { Analytics } from '@vercel/analytics/react';
 
 // Keep the color palette in step with Settings.
 let shownTheme = '';
@@ -24,7 +25,13 @@ subscribe(syncTheme);
 watchMotion(subscribe);
 
 initRouter();
-render(<App />, document.getElementById('app')!);
+render(
+  <>
+    <App />
+    <Analytics />
+  </>,
+  document.getElementById('app')!
+);
 
 // Resume device sync if this device has a sync key (the sync code loads only then).
 if (loadSyncConfig()) {
