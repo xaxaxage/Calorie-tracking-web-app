@@ -12,7 +12,7 @@ import { defineConfig, type Plugin } from 'vite';
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /** Semver that grows with every build, so Claude Desktop sees a new download as an update. */
-function version(): string {
+export function version(): string {
   const d = new Date();
   return `1.${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}.${d.getUTCHours() * 100 + d.getUTCMinutes()}`;
 }

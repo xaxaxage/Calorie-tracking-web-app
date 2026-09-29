@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WebSocketServer, type WebSocket } from 'ws';
 import { createServer, type AddressInfo, type Socket } from 'node:net';
-import { finalizeEvent, verifyEvent, type Event } from 'nostr-tools/pure';
+import { finalizeEvent } from 'nostr-tools/pure';
 import { addEntry, getData, reload, toggleFavorite, updateSettings } from '../src/lib/store';
 import { builtinFood } from '../src/lib/foods';
 import { addDays, todayKey } from '../src/lib/dates';
@@ -19,6 +18,7 @@ import {
   ToolError,
 } from '../mcp/tools';
 import { OfflineError, RelaySync } from '../mcp/relays';
+import { startRelay } from './fakeRelay';
 
 const wrap = {
   name: 'Chicken wrap',
@@ -195,38 +195,6 @@ describe('reading', () => {
     expect(() => setGoals({ kcal: 100 })).toThrow(/between/);
   });
 });
-
-/** Enough of a Nostr relay for the sync client: replaceable events, REQ with since/limit. */
-function startRelay() {
-  const events = new Map<string, Event>();
-  let refuse = false;
-  const server = new WebSocketServer({ port: 0 });
-  server.on('connection', (ws: WebSocket) => {
-    ws.on('message', (raw) => {
-      const msg = JSON.parse(String(raw));
-      if (msg[0] === 'EVENT') {
-        const e: Event = msg[1];
-        if (refuse || !verifyEvent(e)) return ws.send(JSON.stringify(['OK', e.id, false, 'blocked']));
-        const key = `${e.pubkey}:${e.kind}:${e.tags.find((t) => t[0] === 'd')?.[1]}`;
-        const old = events.get(key);
-        if (!old || e.created_at > old.created_at) events.set(key, e);
-        ws.send(JSON.stringify(['OK', e.id, true, '']));
-      } else if (msg[0] === 'REQ') {
-        const [, id, filter] = msg;
-        for (const e of events.values()) {
-          if (filter.authors?.includes(e.pubkey) && (!filter.since || e.created_at >= filter.since)) ws.send(JSON.stringify(['EVENT', id, e]));
-        }
-        ws.send(JSON.stringify(['EOSE', id]));
-      }
-    });
-  });
-  return {
-    url: () => `ws://127.0.0.1:${(server.address() as AddressInfo).port}`,
-    events,
-    refuse: (on: boolean) => (refuse = on),
-    close: () => new Promise((r) => server.close(r)),
-  };
-}
 
 describe('relay sync', () => {
   const relay = startRelay();

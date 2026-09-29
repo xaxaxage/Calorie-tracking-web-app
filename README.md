@@ -54,7 +54,8 @@ barcode scanner, photo estimate and quick add.
   bars grow, buttons give a little when pressed, and new ingredients and toasts slide in. **Settings →
   Appearance → Animations** turns it all off; it's also off while the phone's Reduce Motion setting is on.
 - **Settings** – daily calorie and macro goals, appearance, API key, sync, export / import a backup, delete all data.
-- **Claude Desktop** – ask Claude about your food log or log meals by describing them (see below).
+- **Claude Desktop, claude.ai and the Claude phone apps** – ask Claude about your food log or log meals by
+  describing them (see below).
 - Works offline (except online search, barcode lookups and photo estimates) once loaded.
 
 ## Use it on your iPhone
@@ -223,6 +224,46 @@ Optional: `RELAYS` (space- or comma-separated `wss://` URLs) to use other relays
 
 </details>
 
+## Use with Claude on your phone (online connector)
+
+The same connector can run online, so **claude.ai and the Claude phone apps** can use your food log too —
+even with your computer off. It runs on [Vercel](https://vercel.com)'s free plan, in your own account; set
+it up once (a computer makes it easier), and turn on **Sync between devices** first.
+
+1. Open [vercel.com/new](https://vercel.com/new), sign in with GitHub and **import this repository** (fork it
+   first if it isn't in your account). The settings come from `vercel.json`; leave them as they are.
+2. Before **Deploy**, add an **Environment Variable** named `SYNC_KEY` with your 12 words as the value, then
+   deploy. Opening the project's address, listed under **Domains** (like `calorie-tracker-abc.vercel.app`; not a
+   single deployment's address, which Vercel keeps private), should now say *"Sync key (SYNC_KEY): set"*.
+3. In the app: **Settings → Sync between devices → Use with Claude on your phone**, paste that address. The app
+   shows your **connector address**: `https://<project>.vercel.app/mcp/<secret>?tz=<your time zone>`.
+4. In Claude on a computer (claude.ai or the desktop app): **Customize → Connectors → + → Add custom
+   connector**, name it *Calorie Tracker*, paste the connector address, **Add**. Custom connectors are
+   available on every plan (Free: one custom connector).
+5. On your phone, the Claude app now has it too (connectors can be added only on the web or desktop, then
+   used everywhere). Ask *"what did I eat today?"* or *"log breakfast: two eggs and toast"*.
+
+**How it's protected:** the address contains a 128-bit secret derived from your sync key; any other address
+gets "Not found". Treat the address like a password — anyone with it can read and change your log. It
+changes when you change the sync key: then update `SYNC_KEY` in Vercel (**Settings → Environment
+Variables**, then **Redeploy**) and replace the connector's address in Claude. The sync key itself stays
+in your Vercel project's settings; the connector uses it to decrypt your log for Claude, and never logs it.
+
+**Time zone:** servers run on UTC, so the address carries your time zone (`?tz=Europe/Berlin`) for "today"
+and meal times; a `TIME_ZONE` environment variable works too. It appears in the app's device list as
+**Claude (online connector)**; `RELAYS` and `DEVICE_NAME` work as for the Desktop connector. Each push to the
+repository redeploys it.
+
+<details>
+<summary>Somewhere other than Vercel</summary>
+
+`npm run build:cloud` builds it to `.vercel/output/functions/mcp.func/index.mjs`, one file with everything
+included. Any host that runs Node.js 22 and gives it an HTTPS address works: start it with
+`SYNC_KEY="…" PORT=8787 node index.mjs` and use `https://<your host>/mcp/<secret>` (the app shows the secret
+once you paste the host). It speaks MCP's Streamable HTTP without sessions, so it suits serverless hosts.
+
+</details>
+
 ## Appearance and humor
 
 **Settings → Appearance** has the palettes. Tap one and the whole app changes at once. Palettes are saved per
@@ -287,6 +328,7 @@ npm install
 npm run dev        # local dev server
 npm test           # unit tests (Vitest)
 npm run build      # type-check and build to dist/ (the app, plus the Claude Desktop extension in dist/mcp/)
+npm run build:cloud  # the online connector for Vercel, in .vercel/output/
 npm run preview    # serve the production build
 ```
 
@@ -310,7 +352,8 @@ src/
                      router, Open Food Facts client, barcode scanner, textmatch (offline describe)
   lib/ai/            Gemini and Claude estimates for photos and descriptions
   lib/sync/          device sync: sync key and encryption, weekly parts and merging, relay engine
-mcp/                 Claude Desktop connector: MCP tools, and sync without a browser (built by vite.mcp.config.ts)
+mcp/                 Claude connector: MCP tools and sync without a browser (connector.ts); Claude Desktop over
+                     stdio (server.ts, vite.mcp.config.ts) and online over HTTP (cloud.ts, vite.cloud.config.ts)
 tests/               unit tests
 ```
 

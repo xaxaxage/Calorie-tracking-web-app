@@ -3,6 +3,7 @@ import { DEFAULT_RELAYS, isRelayUrl, loadSyncConfig, useSyncStatus, type SyncSta
 import { deviceShown, type DevicePart, type DeviceType } from '../lib/sync/parts';
 import { renameThisDevice, thisDevice } from '../lib/sync/device';
 import { showToast } from '../lib/toast';
+import { connectorHost, connectorUrl, savedConnectorHost, saveConnectorHost, timeZone } from '../lib/connector';
 import { Chat, ComputerIcon, Pencil, PhoneIcon, TabletIcon, Trash } from '../components/Icons';
 
 type Mode = 'idle' | 'create' | 'join' | 'show' | 'change';
@@ -35,12 +36,12 @@ function statusText(s: SyncStatus): string {
   }
 }
 
-async function copy(text: string) {
+async function copy(text: string, what = 'Sync key') {
   try {
     await navigator.clipboard.writeText(text);
-    showToast('Sync key copied');
+    showToast(`${what} copied`);
   } catch {
-    showToast('Copy failed — select the words and copy them instead');
+    showToast('Copy failed — select the text and copy it instead');
   }
 }
 
@@ -171,6 +172,91 @@ function DeviceList({ devices }: { devices: Record<string, DevicePart> }) {
         from syncing, change the sync key.
       </p>
     </div>
+  );
+}
+
+/** Setting up the online connector, so Claude on claude.ai and on the phone can use the log. */
+function ClaudeOnline({ phrase }: { phrase: string }) {
+  const [token, setToken] = useState('');
+  const [host, setHost] = useState(savedConnectorHost);
+  useEffect(() => {
+    let live = true;
+    crypto()
+      .then(({ connectorToken }) => connectorToken(phrase))
+      .then((t) => live && setToken(t));
+    return () => {
+      live = false;
+    };
+  }, [phrase]);
+  const clean = connectorHost(host);
+  const url = clean && token ? connectorUrl(clean, token, timeZone()) : '';
+
+  return (
+    <details class="fold claude-online">
+      <summary>Use with Claude on your phone</summary>
+      <p class="field-hint">
+        Run the same connector online, free on Vercel, and Claude on claude.ai and in the Claude phone app can read and
+        log your food too. Set it up once; a computer makes it easier.
+      </p>
+      <ol class="steps body-text">
+        <li>
+          Open{' '}
+          <a href="https://vercel.com/new" target="_blank" rel="noopener noreferrer">
+            vercel.com/new
+          </a>
+          , sign in with GitHub and import the <strong>Calorie-tracking-web-app</strong> repository (fork it first if it
+          isn't in your account).
+        </li>
+        <li>
+          Before <strong>Deploy</strong>, add an environment variable named <code>SYNC_KEY</code> with your 12 words as
+          its value.
+          <button type="button" class="link-btn" onClick={() => copy(phrase)}>
+            Copy the 12 words
+          </button>
+        </li>
+        <li>
+          <label for="connector-host">
+            When it's deployed, paste the project's address from Vercel (under <strong>Domains</strong>) here:
+          </label>
+          <input
+            id="connector-host"
+            class="input mono"
+            type="url"
+            inputMode="url"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellcheck={false}
+            placeholder="calorie-tracker-abc.vercel.app"
+            value={host}
+            onInput={(e) => {
+              const text = (e.target as HTMLInputElement).value;
+              setHost(text);
+              saveConnectorHost(connectorHost(text));
+            }}
+          />
+          {host.trim() && !clean && <span class="field-hint error-text">That doesn't look like an address.</span>}
+        </li>
+        <li>
+          In Claude on a computer (claude.ai or the desktop app): <strong>Customize → Connectors → + → Add custom
+          connector</strong>, name it Calorie Tracker, and paste this address:
+          {url ? (
+            <>
+              <code class="connector-url">{url}</code>
+              <button type="button" class="btn-secondary" onClick={() => copy(url, 'Connector address')}>
+                Copy the connector address
+              </button>
+            </>
+          ) : (
+            <span class="muted"> it appears here once you've pasted the Vercel address.</span>
+          )}
+        </li>
+        <li>Connectors added there work in the Claude phone app too. Ask it what you ate today.</li>
+      </ol>
+      <p class="field-hint">
+        The address works like a password: anyone who has it can read and change your food log. It changes when you
+        change the sync key, and then Vercel needs the new 12 words too (update <code>SYNC_KEY</code> and redeploy).
+      </p>
+    </details>
   );
 }
 
@@ -438,6 +524,8 @@ export function SyncSettings() {
           </button>
         )}
       </details>
+
+      {config && <ClaudeOnline phrase={config.phrase} />}
 
       <details class="fold relays">
         <summary>Relays ({config?.relays.length ?? 0})</summary>

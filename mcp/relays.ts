@@ -22,7 +22,7 @@ const LOOKBACK = 15 * 60;
 
 /** A relay that couldn't be reached is left out for this long, so it doesn't slow down every request. */
 const SKIP_DOWN_RELAY = 2 * 60_000;
-/** How often to tell the app's device list that Claude Desktop is still in use. */
+/** How often to tell the app's device list that the connector is still in use. */
 const ANNOUNCE_EVERY = 15 * 60_000;
 
 /** How this server shows up in the app's device list. */
@@ -236,6 +236,11 @@ export class RelaySync {
     };
     const json = JSON.stringify(part);
     if (await this.send(part.name, json, await sha256(json))) this.lastAnnounced = Date.now();
+  }
+
+  /** Close the relay connections; the next pull or push opens them again. */
+  disconnect() {
+    this.pool.close(this.relays);
   }
 
   close() {

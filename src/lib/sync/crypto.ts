@@ -86,6 +86,18 @@ export async function deriveKeys(phrase: string): Promise<SyncKeys> {
 const hex = (bytes: ArrayBuffer | Uint8Array) =>
   [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
 
+/**
+ * The secret part of the online Claude connector's address. Anyone with the
+ * address can use the food log through it, so it's as unguessable as a key
+ * (128 bits) and derived from the sync key: it changes when the key does, and
+ * doesn't reveal the key.
+ */
+export async function connectorToken(phrase: string): Promise<string> {
+  const seed = await mnemonicToSeedWebcrypto(normalizePhrase(phrase));
+  const base = await crypto.subtle.importKey('raw', seed as BufferSource, 'HKDF', false, ['deriveBits']);
+  return hex(await hkdf(base, 'claude-connector-address', 128));
+}
+
 /** Opaque, stable label for a part name, so relays can't see which weeks you logged. */
 export async function partLabel(nameKey: CryptoKey, name: string): Promise<string> {
   return hex(await crypto.subtle.sign('HMAC', nameKey, enc.encode(`part:${name}`))).slice(0, 32);
