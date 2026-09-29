@@ -82,17 +82,72 @@ export function productToFood(p: any): Food | undefined {
   };
 }
 
-async function getJson(url: string, signal?: AbortSignal): Promise<any> {
-  let res: Response;
-  try {
-    res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
-  } catch (err) {
-    if ((err as Error).name === 'AbortError') throw err;
-    throw new LookupError('No connection. Check your internet and try again.', 'offline');
+/** Open Food Facts allows 10 searches a minute; stay under that, retries included. */
+const SEARCHES_PER_MINUTE = 8;
+const searchTimes: number[] = [];
+/** Pauses before trying again when Open Food Facts doesn't answer. */
+const RETRY_DELAYS = [1500, 4000];
+
+const stopped = (signal: AbortSignal) => signal.reason ?? new DOMException('Aborted', 'AbortError');
+
+function wait(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(stopped(signal));
+    const stop = () => {
+      clearTimeout(timer);
+      reject(stopped(signal!));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', stop);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', stop, { once: true });
+  });
+}
+
+/** Wait for a free search under the per-minute limit, then take it. */
+async function searchSlot(signal?: AbortSignal): Promise<void> {
+  for (;;) {
+    const t = Date.now();
+    while (searchTimes.length && t - searchTimes[0] >= 60_000) searchTimes.shift();
+    if (searchTimes.length < SEARCHES_PER_MINUTE) {
+      searchTimes.push(t);
+      return;
+    }
+    await wait(searchTimes[0] + 60_000 - t, signal);
   }
-  if (res.status === 404) return null;
-  if (!res.ok) throw new LookupError('Open Food Facts is not responding. Try again in a moment.', 'server');
-  return res.json();
+}
+
+const offline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+
+/**
+ * Fetch JSON from Open Food Facts, trying again when it doesn't answer. Its
+ * busy replies (503) carry no CORS header, so in a browser they fail like a
+ * dropped connection; only the browser's own online flag tells them apart.
+ */
+async function getJson(url: string, signal?: AbortSignal, search = false): Promise<any> {
+  for (let attempt = 0; ; attempt++) {
+    if (search) await searchSlot(signal);
+    let res: Response | undefined;
+    try {
+      res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+    } catch (err) {
+      if (signal?.aborted) throw err;
+    }
+    if (res?.status === 404) return null;
+    if (res?.ok) return res.json();
+    if (offline()) throw new LookupError('No connection. Check your internet and try again.', 'offline');
+    const busy = !res || res.status === 429 || res.status >= 500;
+    if (!busy || attempt >= RETRY_DELAYS.length) {
+      throw new LookupError("Open Food Facts isn't answering right now — it's often overloaded lately. Try again in a minute.", 'server');
+    }
+    await wait(RETRY_DELAYS[attempt], signal);
+  }
+}
+
+/** For tests: forget the searches made so far. */
+export function resetSearchLimit() {
+  searchTimes.length = 0;
 }
 
 /** Look up a barcode. Resolves to undefined when the product isn't known or has no calories. */
@@ -114,7 +169,7 @@ export async function searchProducts(query: string, signal?: AbortSignal): Promi
     page_size: '20',
     fields: FIELDS,
   });
-  const json = await getJson(`${BASE}/cgi/search.pl?${params}`, signal);
+  const json = await getJson(`${BASE}/cgi/search.pl?${params}`, signal, true);
   const products: any[] = Array.isArray(json?.products) ? json.products : [];
   const foods = products.map(productToFood).filter((f): f is Food => !!f && f.name.length > 0);
   const seen = new Set<string>();

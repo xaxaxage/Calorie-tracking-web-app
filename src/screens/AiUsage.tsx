@@ -11,6 +11,8 @@ import {
   operations,
   pacificDayStart,
   peakPerMinute,
+  resting,
+  restUntil,
   perModelToday,
   tally,
   usedSince,
@@ -35,7 +37,7 @@ const OUTCOME: Record<UsageOutcome, string> = {
   'minute-limit': 'Per-minute limit',
   'day-limit': 'Daily limit reached',
   limit: 'Limit reached',
-  busy: 'Busy',
+  busy: 'Overloaded',
   failed: 'Failed',
   cancelled: 'Cancelled',
 };
@@ -172,6 +174,22 @@ export function AiUsage() {
                         {shown.reported ? 'limits as Google reported them for your key' : ''}
                       </span>
                     )}
+                    {!usedUp && resting(m.model, now) && (
+                      <span class="usage-warn">
+                        Google says it's overloaded — resting it until {clock(restUntil(m.model)!)}, so estimates use
+                        another model meanwhile.{' '}
+                        <button
+                          type="button"
+                          class="link-btn"
+                          onClick={() => {
+                            forgetDayLimit(m.model);
+                            showToast(`${label(m)} will be tried again`);
+                          }}
+                        >
+                          Try it again now
+                        </button>
+                      </span>
+                    )}
                     {usedUp && (
                       <span class="usage-warn">
                         Out of free uses until {clock(known.dayUsedUpUntil!)} — skipped until then.{' '}
@@ -250,6 +268,7 @@ export function AiUsage() {
                       {OUTCOME[r.outcome]} · {(r.ms / 1000).toFixed(1)} s
                       {r.tokensIn || r.tokensOut ? ` · ${num((r.tokensIn ?? 0) + (r.tokensOut ?? 0))} tokens` : ''}
                     </span>
+                    {r.error && r.outcome !== 'ok' && <span class="usage-req-error">{r.provider === 'gemini' ? 'Google' : 'Anthropic'}: {r.error}</span>}
                   </div>
                 ))}
               </li>
@@ -259,9 +278,10 @@ export function AiUsage() {
       </section>
 
       <p class="field-hint pad-4">
-        One estimate is normally one request. More are sent only when a model is busy or at a limit and{' '}
-        <strong>Switch models automatically</strong> tries again or tries another model (you can turn that off in Settings).
-        A model whose daily free uses are gone is skipped until Google resets them. This counts requests from this device
+        One estimate is normally one request. More are sent only when a model is overloaded or at a limit and{' '}
+        <strong>Switch models automatically</strong> tries another model (you can turn that off in Settings). A model
+        whose daily free uses are gone is skipped until Google resets them, and one Google calls overloaded rests for 5–30
+        minutes — its failed requests seem to count toward the daily limit too. This counts requests from this device
         only — your other devices count their own, while Google's limits are shared by everything using your key.
       </p>
 

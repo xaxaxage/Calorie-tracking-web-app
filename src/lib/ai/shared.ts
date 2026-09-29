@@ -45,8 +45,8 @@ export const MAX_CORRECTION = 500;
 export class AiError extends Error {
   constructor(
     message: string,
-    /** A one-tap fix the screen can offer, e.g. switching to the free provider. */
-    readonly fix?: 'use-gemini',
+    /** A one-tap fix the screen can offer: switch to the free provider, or to Flash-Lite. */
+    readonly fix?: 'use-gemini' | 'use-lite',
   ) {
     super(message);
   }

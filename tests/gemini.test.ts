@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { estimateWithGemini, listGeminiModels } from '../src/lib/ai/gemini';
 import { geminiChain, geminiLabel } from '../src/lib/ai';
 import { emptyData } from '../src/lib/store';
+import { allLimits, forgetDayLimit } from '../src/lib/ai/usage';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -27,10 +28,14 @@ function stubFetch(handler: (model: string, body: any) => Response) {
   return calls;
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  // Each test starts without models resting from the one before.
+  Object.keys(allLimits()).forEach(forgetDayLimit);
+});
 
 describe('Gemini model switching', () => {
-  it('retries a busy model once, then moves on past busy and out-of-quota models', async () => {
+  it('moves on at once past an overloaded model (no retry while others are left) and an out-of-quota one', async () => {
     const calls = stubFetch((model) => {
       if (model === 'gemini-flash-lite-latest') return failure(503, 'The model is overloaded.', 'UNAVAILABLE');
       if (model === 'gemini-flash-latest') return failure(429, 'Resource has been exhausted.', 'RESOURCE_EXHAUSTED');
@@ -46,10 +51,9 @@ describe('Gemini model switching', () => {
     );
     expect(result.model).toBe('gemini-3.5-flash');
     expect(result.items[0].name).toBe('White rice, cooked');
-    expect(calls).toEqual(['gemini-flash-lite-latest', 'gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.5-flash']);
+    expect(calls).toEqual(['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.5-flash']);
     expect(progress).toEqual([
-      'gemini-flash-lite-latest is busy — trying again…',
-      'gemini-flash-lite-latest is busy — trying gemini-flash-latest…',
+      'gemini-flash-lite-latest is overloaded — trying gemini-flash-latest…',
       'gemini-flash-latest is out of free uses — trying gemini-3.5-flash…',
     ]);
   }, 10_000);

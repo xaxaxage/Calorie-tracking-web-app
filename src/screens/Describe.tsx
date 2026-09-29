@@ -7,7 +7,7 @@ import { getData, recentFoods, useData } from '../lib/store';
 import { useLoadingQuip } from '../lib/humor';
 import { AiError, type EstimatedItem } from '../lib/ai/shared';
 import { showToast } from '../lib/toast';
-import { ProviderLine, UseGeminiButton } from '../components/AiProvider';
+import { ProviderLine, UseGeminiButton, UseLiteButton } from '../components/AiProvider';
 import { AddPhotoButton } from '../components/AddPhotoButton';
 import { goBack, href, navigate } from '../lib/router';
 import { EstimateReview, toReviewItem, type ReviewItem } from '../components/EstimateReview';
@@ -25,7 +25,7 @@ interface Done {
   id: number;
 }
 
-type Phase = { state: 'edit'; message?: string; fix?: 'use-gemini' } | { state: 'loading'; progress?: string } | Done;
+type Phase = { state: 'edit'; message?: string; fix?: AiError['fix'] } | { state: 'loading'; progress?: string } | Done;
 
 type Fixing = { busy: boolean; progress?: string; error?: string };
 
@@ -263,6 +263,7 @@ export function Describe({
 
           {phase.state === 'edit' && phase.message && <div class="notice plain">{phase.message}</div>}
           {phase.state === 'edit' && phase.fix === 'use-gemini' && <UseGeminiButton onSwitched={askAi} />}
+          {phase.state === 'edit' && phase.fix === 'use-lite' && <UseLiteButton onSwitched={askAi} />}
 
           {phase.state === 'loading' ? (
             <div class="sheet-status">

@@ -13,8 +13,9 @@ barcode scanner, photo estimate and quick add.
 - **Add food** – pick the meal and start typing: one field takes a whole meal ("2 eggs, toast with butter and
   a latte") or the name of one food. As soon as you type, the page becomes the describe menu — **Estimate with
   Gemini** (or press Return) and **Match from food list** — with matching foods from ~140 built-in ones and
-  millions of [Open Food Facts](https://world.openfoodfacts.org) products below it for single foods. Or add from
-  **Recent** and **Favorites** with one tap (tap again to undo).
+  millions of [Open Food Facts](https://world.openfoodfacts.org) products below it for single foods (its search
+  is often overloaded lately, so the app tries up to three times and stays under its limit of 10 searches a
+  minute). Or add from **Recent** and **Favorites** with one tap (tap again to undo).
 - **Portion** – grams/ml with ±buttons, serving presets, live calories and macros, "left today after this",
   star to save as a favorite.
 - **Barcode** – scans EAN/UPC codes with the camera (works on iPhone through a bundled WebAssembly
@@ -78,10 +79,17 @@ The app can use either AI; pick one in **Settings → AI estimates**:
   model picker also lists every model that key can use (Gemini and Gemma), and **Other** takes any model ID.
   Free keys can use Flash and Flash-Lite models, each with its own daily allowance; Pro models need billing.
 
-  **Busy or out of free uses:** with **Switch models automatically** on (the default), a model that answers
-  "overloaded" (503) is retried once, and a model that is busy, out of free uses (429) or unavailable hands over
-  to the next one: the newest Flash-Lite and Flash, then other Flash models on your key, then a Gemma model — up
-  to five in total. The screen shows which model is being tried and which one answered.
+  **Overloaded or out of free uses:** with **Switch models automatically** on (the default), a model that is
+  overloaded (503), out of free uses (429) or unavailable hands over to the next one: the newest Flash-Lite and
+  Flash, then other Flash models on your key, then a Gemma model — up to five in total. The screen shows which
+  model is being tried and which one answered.
+
+  **Overloaded models rest:** free-tier Flash models often answer "This model is currently experiencing high
+  demand" (503), and those failed requests seem to count toward the 20 a day. So a model Google calls overloaded
+  isn't retried while another can answer; it rests for 5 minutes (doubling up to 30 while it stays overloaded)
+  and estimates go to the next model meanwhile. With automatic switching off, or no other model left, it's tried
+  once more after a pause; then the error quotes Google and offers **Use Flash-Lite instead**. The AI line on the
+  estimate screens and **AI usage** say when a model is resting, with **Try it again now**.
 
   **Limits are handled carefully:** Google's "limit reached" replies say which limit it was. A model whose
   **daily** free uses are gone is skipped until Google resets them (midnight in California), so it doesn't cost a
@@ -93,7 +101,7 @@ The app can use either AI; pick one in **Settings → AI estimates**:
   and the busiest minute against the per-minute one, using Google's free-tier limits (Flash: 20 a day, 5 a minute;
   Flash-Lite: 500 a day, 15 a minute) unless Google has reported yours — with "out of free uses until 09:00" and
   **Try it again now**; the last 7 days; and recent estimates with each request they took (model, result, time,
-  tokens). Aliases like "Flash (newest)" are counted under the model that answered, as AI Studio does, so an
+  tokens, and Google's own words when it failed). Aliases like "Flash (newest)" are counted under the model that answered, as AI Studio does, so an
   alias whose model is used up is skipped too, and each model is tried once per estimate. Kept on the device only.
 
   On the free tier Google may use what you send to improve its products. Free-tier availability depends on your

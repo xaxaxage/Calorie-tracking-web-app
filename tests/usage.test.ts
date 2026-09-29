@@ -220,6 +220,49 @@ describe('usage log', () => {
     expect(usage.checkBudget('gemini-3.7-flash')).toEqual({});
   });
 
+  it("rests a model Google calls overloaded, so the next estimates don't spend requests on it", async () => {
+    const { usage, gemini } = await load();
+    const overloaded = json(503, { error: { code: 503, status: 'UNAVAILABLE', message: 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.' } });
+    const calls = stubFetch((model) => (model === 'gemini-3.8-flash' ? overloaded.clone() : reply()));
+    const chain = ['gemini-3.8-flash', 'gemini-flash-lite-latest'];
+    const first = await gemini.estimateWithGemini('AIza', chain, { kind: 'photo', image: { dataUrl: '', base64: 'AA' } });
+    expect(first.model).toBe('gemini-flash-lite-latest');
+    // No second try on the overloaded model while another one is left.
+    expect(calls).toEqual(['gemini-3.8-flash', 'gemini-flash-lite-latest']);
+    const [busy] = usage.usageRecords();
+    expect(busy).toMatchObject({ outcome: 'busy', error: '503 · This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.' });
+    // Google appears to count those toward the day's allowance, so the meter does too.
+    expect(usage.usedSince('gemini-3.8-flash', 0)).toBe(1);
+    expect(usage.resting('gemini-3.8-flash')).toBe(true);
+    const until = usage.restUntil('gemini-3.8-flash')!;
+    expect(until - Date.now()).toBeGreaterThan(4 * 60_000);
+    expect(until - Date.now()).toBeLessThanOrEqual(5 * 60_000);
+
+    // The next estimate goes straight to Flash-Lite and says why.
+    const progress: string[] = [];
+    await gemini.estimateWithGemini('AIza', chain, { kind: 'text', text: 'rice' }, undefined, (m) => progress.push(m));
+    expect(calls).toEqual(['gemini-3.8-flash', 'gemini-flash-lite-latest', 'gemini-flash-lite-latest']);
+    expect(progress[0]).toMatch(/^gemini-3.8-flash is overloaded on Google's side — resting it until .* — using gemini-flash-lite-latest…$/);
+
+    // Overloaded again: it rests longer. Answering ends the rest.
+    usage.noteBusy('gemini-3.8-flash');
+    expect(usage.restUntil('gemini-3.8-flash')! - Date.now()).toBeGreaterThan(9 * 60_000);
+    usage.noteAnswered('gemini-3.8-flash');
+    expect(usage.resting('gemini-3.8-flash')).toBe(false);
+  });
+
+  it('with only one model, tries once more after a pause, then offers Flash-Lite with Google\'s words', async () => {
+    const { gemini } = await load();
+    const calls = stubFetch(() => json(503, { error: { code: 503, status: 'UNAVAILABLE', message: 'This model is currently experiencing high demand.' } }));
+    const err = await gemini.estimateWithGemini('AIza', ['gemini-3.8-flash'], { kind: 'text', text: 'rice' }).catch((e) => e);
+    expect(calls).toEqual(['gemini-3.8-flash', 'gemini-3.8-flash']);
+    expect(err.message).toMatch(/^Google says gemini-3.8-flash is overloaded right now \(Google: “503 · This model is currently experiencing high demand\.”\)\. .*Flash-Lite usually still answers\.$/);
+    expect(err.fix).toBe('use-lite');
+    // Already on Flash-Lite: nothing to offer.
+    const lite = await gemini.estimateWithGemini('AIza', ['gemini-flash-lite-latest'], { kind: 'text', text: 'rice' }).catch((e) => e);
+    expect(lite.fix).toBeUndefined();
+  }, 15_000);
+
   it('logs the model list separately; it does not count toward limits', async () => {
     const { usage, gemini } = await load();
     stubFetch(() => json(200, { models: [{ name: 'models/gemini-3.8-flash', displayName: 'Gemini 3.8 Flash', supportedActions: ['generateContent'] }] }));

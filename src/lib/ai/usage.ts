@@ -43,6 +43,8 @@ export interface UsageRecord {
    * that model's limits.
    */
   served?: string;
+  /** What the provider said when it failed, e.g. "503 · This model is currently experiencing high demand…". */
+  error?: string;
 }
 
 export interface ModelLimits {
@@ -51,6 +53,10 @@ export interface ModelLimits {
   perMinute?: number;
   /** Google said the daily limit is used up; skip the model until then. */
   dayUsedUpUntil?: number;
+  /** Google said the model is overloaded: rest it until then, so requests go where they get answers. */
+  restUntil?: number;
+  /** Overloaded replies in a row, for resting longer each time. */
+  busyStreak?: number;
 }
 
 interface UsageData {
@@ -147,9 +153,47 @@ export function limitsFor(model: string): { perMinute?: number; perDay?: number;
   };
 }
 
-/** Whether Google counted a request toward its limits: it was answered (one turned away at a limit isn't). */
+/**
+ * Whether Google counted a request toward its limits: it was answered, or turned away as overloaded (developers
+ * report those count too — September 2026). One turned away at a limit isn't counted.
+ */
 export const countedByGoogle = (r: UsageRecord) =>
-  r.provider === 'gemini' && r.kind !== 'models' && (r.outcome === 'ok' || r.tokensIn !== undefined);
+  r.provider === 'gemini' && r.kind !== 'models' && (r.outcome === 'ok' || r.outcome === 'busy' || r.tokensIn !== undefined);
+
+const REST_FIRST = 5 * 60_000;
+const REST_MAX = 30 * 60_000;
+
+/**
+ * Google said the model is overloaded. Rest it — 5 minutes, then 10, 20, up to 30 while it keeps saying so —
+ * so estimates go to a model that answers instead of spending the day's requests on failures.
+ */
+export function noteBusy(model: string, now = Date.now()) {
+  const cur = data.limits[model] ?? {};
+  const streak = (cur.busyStreak ?? 0) + 1;
+  const rest = Math.min(REST_MAX, REST_FIRST * 2 ** (streak - 1));
+  data = { ...data, limits: { ...data.limits, [model]: { ...cur, busyStreak: streak, restUntil: now + rest } } };
+  save();
+}
+
+/** The model answered: no more resting. */
+export function noteAnswered(model: string) {
+  const cur = data.limits[model];
+  if (!cur?.busyStreak && !cur?.restUntil) return;
+  const { busyStreak: _s, restUntil: _r, ...rest } = cur;
+  data = { ...data, limits: { ...data.limits, [model]: rest } };
+  save();
+}
+
+/** True while an overloaded model is resting (for an alias: the model behind it). */
+export function resting(model: string, now = Date.now()): boolean {
+  return Math.max(data.limits[model]?.restUntil ?? 0, data.limits[realModel(model)]?.restUntil ?? 0) > now;
+}
+
+/** When a resting model will be tried again. */
+export function restUntil(model: string): number | undefined {
+  const t = Math.max(data.limits[model]?.restUntil ?? 0, data.limits[realModel(model)]?.restUntil ?? 0);
+  return t > 0 ? t : undefined;
+}
 
 /** Requests this device made to a model (aliases included) since a time. */
 export function usedSince(model: string, since: number, records = data.records): number {
@@ -202,8 +246,8 @@ export function forgetDayLimit(model: string) {
   const limits = { ...data.limits };
   for (const id of new Set([model, realModel(model)])) {
     const cur = limits[id];
-    if (!cur?.dayUsedUpUntil) continue;
-    const { dayUsedUpUntil: _gone, ...rest } = cur;
+    if (!cur) continue;
+    const { dayUsedUpUntil: _gone, restUntil: _rest, busyStreak: _streak, ...rest } = cur;
     limits[id] = rest;
   }
   data = { ...data, limits };
@@ -259,6 +303,22 @@ export function nextPacificMidnight(now = Date.now()): number {
 }
 
 // ── Reading Google's limit errors ─────────────────────────────────────────
+
+/** "503 · This model is currently experiencing high demand…" from a Gemini SDK error (its message is Google's JSON). */
+export function googleError(message: string, status?: number): string {
+  let text = message;
+  try {
+    const start = message.indexOf('{');
+    const body = start >= 0 ? JSON.parse(message.slice(start)) : undefined;
+    if (typeof body?.error?.message === 'string') text = body.error.message;
+    status ??= typeof body?.error?.code === 'number' ? body.error.code : undefined;
+  } catch {
+    // not JSON: use the message as it is
+  }
+  text = text.replace(/\s+/g, ' ').trim();
+  if (text.length > 160) text = `${text.slice(0, 157)}…`;
+  return status ? `${status} · ${text}` : text;
+}
 
 export interface QuotaInfo {
   scope: 'minute' | 'day' | 'unknown';

@@ -8,7 +8,7 @@ import { AiError, MAX_NOTE } from '../lib/ai/shared';
 import { takeHandedOffPhoto } from '../lib/photoHandoff';
 import { dataUrlToBlob, saveToPhotos, savePhoto } from '../lib/photos';
 import { showToast } from '../lib/toast';
-import { ProviderLine, UseGeminiButton } from '../components/AiProvider';
+import { ProviderLine, UseGeminiButton, UseLiteButton } from '../components/AiProvider';
 import { goBack, href } from '../lib/router';
 import { EstimateReview, toReviewItem } from '../components/EstimateReview';
 import { Camera, ChevronLeft, Download } from '../components/Icons';
@@ -28,7 +28,7 @@ type Phase =
   | { state: 'pick'; message?: string }
   | { state: 'analyzing'; image: PreparedImage; progress?: string }
   | Done
-  | { state: 'error'; image: PreparedImage; message: string; fix?: 'use-gemini' };
+  | { state: 'error'; image: PreparedImage; message: string; fix?: AiError['fix'] };
 
 type Fixing = { busy: boolean; progress?: string; error?: string };
 
@@ -295,6 +295,8 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
             </button>
             {phase.fix === 'use-gemini' ? (
               <UseGeminiButton onSwitched={() => analyze(phase.image)} />
+            ) : phase.fix === 'use-lite' ? (
+              <UseLiteButton onSwitched={() => analyze(phase.image)} />
             ) : (
               <button type="button" class="btn-primary" onClick={() => analyze(phase.image)}>
                 Try again

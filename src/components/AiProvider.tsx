@@ -1,7 +1,8 @@
 import { providerSummary } from '../lib/ai';
-import { dayUsedUp, modelLimits, useUsage } from '../lib/ai/usage';
+import { dayUsedUp, modelLimits, resting, restUntil, useUsage } from '../lib/ai/usage';
 import { updateSettings, useData } from '../lib/store';
 import { navigate } from '../lib/router';
+import { showToast } from '../lib/toast';
 
 /**
  * "Using Gemini · Flash-Lite (newest) · Change" under the AI buttons, with a
@@ -11,11 +12,23 @@ export function ProviderLine() {
   const { settings } = useData();
   useUsage();
   const model = settings.geminiModel;
-  const usedUp = settings.aiProvider === 'gemini' && dayUsedUp(model);
+  const gemini = settings.aiProvider === 'gemini';
+  const usedUp = gemini && dayUsedUp(model);
   const until = modelLimits(model).dayUsedUpUntil;
+  const rests = gemini && !usedUp && resting(model);
+  const time = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return (
     <p class="provider-line">
       Using {providerSummary(settings)} · <a href="#/settings">Change</a>
+      {rests && (
+        <span class="provider-warn">
+          {' '}
+          {settings.geminiAutoSwitch
+            ? `Google says it's overloaded, so another model is used until ${time(restUntil(model)!)}`
+            : 'Google said it was overloaded at the last try'}{' '}
+          · <a href="#/usage">Usage</a>
+        </span>
+      )}
       {usedUp && until && (
         <span class="provider-warn">
           {' '}
@@ -25,6 +38,23 @@ export function ProviderLine() {
         </span>
       )}
     </p>
+  );
+}
+
+/** Offered when a Flash model is overloaded: switch to Flash-Lite (it usually still answers) and retry. */
+export function UseLiteButton({ onSwitched }: { onSwitched: () => void }) {
+  return (
+    <button
+      type="button"
+      class="btn-primary"
+      onClick={() => {
+        updateSettings({ geminiModel: 'gemini-flash-lite-latest' });
+        showToast('Now using Flash-Lite (newest) — change it any time in Settings');
+        onSwitched();
+      }}
+    >
+      Use Flash-Lite instead
+    </button>
   );
 }
 

@@ -2167,3 +2167,9 @@
   color: var(--ink);
   font-weight: 600;
 }
+.usage-req-error {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

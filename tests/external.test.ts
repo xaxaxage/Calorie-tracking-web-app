@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { productToFood } from '../src/lib/openfoodfacts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { LookupError, productToFood, resetSearchLimit, searchProducts } from '../src/lib/openfoodfacts';
 import { isValidProductCode } from '../src/lib/scanner';
 import { parseHash, href } from '../src/lib/router';
 import { mealForTime, parseMeal } from '../src/lib/meals';
@@ -63,5 +63,74 @@ describe('routing helpers', () => {
     expect(mealForTime(at(23))).toBe('snack');
     expect(parseMeal('dinner')).toBe('dinner');
     expect(parseMeal('brunch')).toBeUndefined();
+  });
+});
+
+describe('Open Food Facts search', () => {
+  const ok = (products: unknown[]) => new Response(JSON.stringify({ products }), { status: 200 });
+  const oat = { code: '1', product_name: 'Oat drink', nutriments: { 'energy-kcal_100g': 59 } };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    resetSearchLimit();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('tries again when a busy reply fails like a dropped connection', async () => {
+    const fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(new Response('', { status: 503 }))
+      .mockResolvedValueOnce(ok([oat]));
+    vi.stubGlobal('fetch', fetch);
+    const found = searchProducts('oat');
+    await vi.runAllTimersAsync();
+    expect((await found).map((f) => f.name)).toEqual(['Oat drink']);
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("says Open Food Facts isn't answering, not that you're offline", async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    const found = searchProducts('oat').catch((e) => e);
+    await vi.runAllTimersAsync();
+    const err = await found;
+    expect(err).toBeInstanceOf(LookupError);
+    expect(err.kind).toBe('server');
+    expect(err.message).toMatch(/isn't answering/);
+  });
+
+  it('says offline when the phone is offline, without retrying', async () => {
+    const fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    vi.stubGlobal('fetch', fetch);
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    const err = await searchProducts('oat').catch((e) => e);
+    expect(err.kind).toBe('offline');
+    expect(fetch).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  });
+
+  it('stays under the search limit, waiting for a free minute slot', async () => {
+    const fetch = vi.fn().mockImplementation(async () => ok([]));
+    vi.stubGlobal('fetch', fetch);
+    for (let i = 0; i < 8; i++) await searchProducts(`food ${i}`);
+    expect(fetch).toHaveBeenCalledTimes(8);
+    const ninth = searchProducts('food 9');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetch).toHaveBeenCalledTimes(8);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await ninth;
+    expect(fetch).toHaveBeenCalledTimes(9);
+  });
+
+  it('stops waiting when the search is cancelled', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => ok([])));
+    for (let i = 0; i < 8; i++) await searchProducts(`food ${i}`);
+    const controller = new AbortController();
+    const waiting = searchProducts('more', controller.signal).catch((e) => e);
+    controller.abort();
+    expect((await waiting).name).toBe('AbortError');
   });
 });

@@ -14,13 +14,18 @@ import {
 import {
   checkBudget,
   dayUsedUp,
+  googleError,
   modelLimits,
   newOp,
+  noteAnswered,
+  noteBusy,
   noteLimit,
   noteServed,
   parseGeminiQuota,
   realModel,
   recordUsage,
+  resting,
+  restUntil,
   type QuotaInfo,
   type UsageKind,
   type UsageOutcome,
@@ -57,11 +62,22 @@ const clock = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-dig
 
 /** When a model's used-up daily limit resets, for messages. */
 function resetNote(model: string): string {
-  const until = modelLimits(model).dayUsedUpUntil;
-  return until && until > Date.now() ? ` until ${clock(until)}` : '';
+  const until = Math.max(modelLimits(model).dayUsedUpUntil ?? 0, modelLimits(realModel(model)).dayUsedUpUntil ?? 0);
+  return until > Date.now() ? ` until ${clock(until)}` : '';
 }
 
-function errorFor(kind: Failure, err: unknown, model: string, tried: number, quota?: QuotaInfo, modelId?: string): AiError {
+const isLite = (model: string) => /lite/i.test(model) || /lite/i.test(realModel(model));
+
+function errorFor(
+  kind: Failure,
+  err: unknown,
+  model: string,
+  tried: number,
+  quota?: QuotaInfo,
+  modelId?: string,
+  /** No Flash-Lite model was tried, so switching to one is worth offering. */
+  offerLite = false,
+): AiError {
   switch (kind) {
     case 'key':
       return new AiError('Your Gemini API key was not accepted. Check it in Settings, or create a new one in Google AI Studio.');
@@ -69,10 +85,15 @@ function errorFor(kind: Failure, err: unknown, model: string, tried: number, quo
       return new AiError("Google's Gemini API isn't available in your country, so this key can't be used here.");
     case 'network':
       return new AiError('No connection to Google. Check your internet and try again.');
-    case 'busy':
+    case 'busy': {
+      const said = err instanceof ApiError ? ` (Google: “${googleError(err.message ?? '', err.status)}”)` : '';
       return new AiError(
-        `Gemini is overloaded right now${tried > 1 ? ` (tried ${tried} models)` : ''}. Try again in a minute, or use Match from food list.`,
+        tried > 1
+          ? `Gemini is overloaded right now — none of the ${tried} models tried could answer${said}. Try again in a few minutes, or use Match from food list.`
+          : `Google says ${model} is overloaded right now${said}. This happens a lot with Flash models lately; Flash-Lite usually still answers.`,
+        offerLite ? 'use-lite' : undefined,
       );
+    }
     case 'quota':
       if (quota?.scope === 'minute') {
         return new AiError(`${model} is at its per-minute limit. Wait a minute and try again, or pick another model in Settings.`);
@@ -132,8 +153,19 @@ function failure(err: unknown, model: string, signal?: AbortSignal): { outcome: 
     const outcome = quota.scope === 'day' ? 'day-limit' : quota.scope === 'minute' ? 'minute-limit' : 'limit';
     return { outcome, ...(quota.model ? { served: quota.model } : {}) };
   }
-  if (err instanceof ApiError && err.status >= 500) return { outcome: 'busy' };
+  if (err instanceof ApiError && err.status >= 500) {
+    // Rest it for a while, so the next estimates go where they get answers.
+    noteBusy(realModel(model));
+    return { outcome: 'busy' };
+  }
   return { outcome: 'failed' };
+}
+
+/** What went wrong, in the provider's own words, for the usage log. */
+function errorText(err: unknown): string | undefined {
+  if (err instanceof ApiError) return googleError(err.message ?? '', err.status);
+  if (err instanceof Error && err.message) return err.message.slice(0, 160);
+  return undefined;
 }
 
 async function callModel(ai: GoogleGenAI, model: string, input: EstimateInput, op: string, signal?: AbortSignal) {
@@ -159,11 +191,13 @@ async function callModel(ai: GoogleGenAI, model: string, input: EstimateInput, o
       },
     });
   } catch (err) {
-    recordUsage({ ...logged, ms: Date.now() - started, ...failure(err, model, signal) });
+    const text = errorText(err);
+    recordUsage({ ...logged, ms: Date.now() - started, ...failure(err, model, signal), ...(text ? { error: text } : {}) });
     throw err;
   }
   const served = response.modelVersion;
   noteServed(model, served);
+  noteAnswered(realModel(model));
   const meta = response.usageMetadata;
   const out = (meta?.candidatesTokenCount ?? 0) + (meta?.thoughtsTokenCount ?? 0);
   const done = {
@@ -181,6 +215,8 @@ async function callModel(ai: GoogleGenAI, model: string, input: EstimateInput, o
     recordUsage({ ...done, outcome: 'ok' });
     return items;
   } catch (err) {
+    const text = errorText(err);
+    if (text) Object.assign(done, { error: text });
     recordUsage({ ...done, outcome: 'failed' });
     throw err;
   }
@@ -216,21 +252,27 @@ export async function estimateWithGemini(
   // all of them, one request to the chosen model: the limit may have been lifted since.
   // An alias for a model already in the list ("newest Flash" = 3.8 Flash) shares its limits,
   // so each model is tried once.
+  // A model Google recently called overloaded rests for a while, the same way.
   const seen = new Set<string>();
   const usable = models.filter((m) => {
     const real = realModel(m);
-    if (seen.has(real) || dayUsedUp(m) || checkBudget(m).skipForDay) return false;
+    if (seen.has(real) || dayUsedUp(m) || checkBudget(m).skipForDay || resting(m)) return false;
     seen.add(real);
     return true;
   });
   const order = usable.length > 0 ? usable : models.slice(0, 1);
   if (usable.length > 0 && order[0] !== models[0]) {
-    onProgress?.(`${labelFor(models[0])} is out of free uses${resetNote(models[0])} — using ${labelFor(order[0])}…`);
+    const chosen = models[0];
+    const why =
+      dayUsedUp(chosen) || checkBudget(chosen).skipForDay
+        ? `is out of free uses${resetNote(chosen)}`
+        : `is overloaded on Google's side — resting it until ${clock(restUntil(chosen) ?? Date.now())}`;
+    onProgress?.(`${labelFor(chosen)} ${why} — using ${labelFor(order[0])}…`);
   }
 
   for (const [index, model] of order.entries()) {
     if (last) {
-      const why = last.kind === 'quota' ? 'out of free uses' : last.kind === 'busy' ? 'busy' : 'unavailable';
+      const why = last.kind === 'quota' ? 'out of free uses' : last.kind === 'busy' ? 'overloaded' : 'unavailable';
       onProgress?.(`${labelFor(last.model)} is ${why} — trying ${labelFor(model)}…`);
     }
     // This device already used the per-minute limit Google reported: wait briefly, or move on.
@@ -253,9 +295,11 @@ export async function estimateWithGemini(
         console.warn(`Gemini ${model} failed (${kind}${quota ? `, ${quota.scope}` : ''})`, err);
         if (FATAL.includes(kind)) throw errorFor(kind, err, model, index + 1);
         last = { kind, err, model, quota };
-        if (kind === 'busy' && attempt === 0) {
-          onProgress?.(`${labelFor(model)} is busy — trying again…`);
-          await wait(1500, signal);
+        // Overloaded: another model is the better bet (and a retry would use up another of the day's
+        // requests). Only when there's nothing else to try, one more attempt after a pause.
+        if (kind === 'busy' && attempt === 0 && index === order.length - 1) {
+          onProgress?.(`${labelFor(model)} is overloaded — trying again in a few seconds…`);
+          await wait(3000, signal);
           continue;
         }
         const pause = quota?.retryAfterMs;
@@ -268,7 +312,7 @@ export async function estimateWithGemini(
       }
     }
   }
-  throw errorFor(last!.kind, last!.err, labelFor(last!.model), order.length, last!.quota, last!.model);
+  throw errorFor(last!.kind, last!.err, labelFor(last!.model), order.length, last!.quota, last!.model, !order.some(isLite));
 }
 
 const EXCLUDE = /(embedding|tts|image|live|audio|robotics|computer-use|aqa|veo|imagen|lyria|learnlm)/i;

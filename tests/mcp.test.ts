@@ -168,10 +168,14 @@ describe('reading', () => {
       expect(getData().entries[0]).toMatchObject({ name: 'Snickers', source: 'barcode', amount: bar.usual_amount });
 
       vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed'); }));
-      const offline = await findFoods('snickers', true);
+      vi.useFakeTimers();
+      const pending = findFoods('snickers', true);
+      await vi.runAllTimersAsync();
+      const offline = await pending;
       expect(offline.open_food_facts_error).toMatch(/didn't answer/);
       expect(offline.results).toBeDefined();
     } finally {
+      vi.useRealTimers();
       vi.unstubAllGlobals();
     }
   });
