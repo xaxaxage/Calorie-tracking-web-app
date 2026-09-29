@@ -6,10 +6,14 @@ import {
   clearUsage,
   dayUsedUp,
   forgetDayLimit,
+  limitsFor,
   nextPacificMidnight,
   operations,
+  pacificDayStart,
+  peakPerMinute,
   perModelToday,
   tally,
+  usedSince,
   useUsage,
   type UsageKind,
   type UsageOutcome,
@@ -43,6 +47,36 @@ const plural = (n: number, one: string, many = `${one}s`) => `${num(n)} ${n === 
 function tokens(inn: number, out: number): string {
   if (!inn && !out) return '';
   return `${num(inn)} in · ${num(out)} out tokens`;
+}
+
+/** "17 / 20" with a bar that turns orange near the limit and red at it — the numbers always written out. */
+function Meter({ label, used, limit }: { label: string; used: number; limit?: number }) {
+  const ratio = limit ? Math.min(1, used / limit) : 0;
+  const level = !limit ? 'none' : ratio >= 1 ? 'full' : ratio >= 0.75 ? 'high' : 'ok';
+  return (
+    <div class={`meter-row ${level}`}>
+      <span class="meter-label">{label}</span>
+      {limit ? (
+        <span
+          class="meter"
+          role="meter"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={limit}
+          aria-valuenow={Math.min(used, limit)}
+          aria-valuetext={`${used} of ${limit}`}
+        >
+          <span class="meter-fill" style={{ width: `${Math.max(ratio * 100, used > 0 ? 4 : 0)}%` }} />
+        </span>
+      ) : (
+        <span class="meter-none" />
+      )}
+      <span class="meter-value num">
+        {num(used)}
+        {limit ? ` / ${num(limit)}` : ''}
+      </span>
+    </div>
+  );
 }
 
 /** Every request this device sent to Gemini or Claude, and what Google said about its limits. */
@@ -111,16 +145,33 @@ export function AiUsage() {
             {models.map((m) => {
               const known = limits[m.model] ?? {};
               const usedUp = dayUsedUp(m.model, now);
+              const gemini = m.provider === 'gemini';
+              const shown = gemini ? limitsFor(m.model) : { reported: false };
+              const since = pacificDayStart(now);
               return (
                 <li class="row usage-row">
                   <div class="row-main">
                     <span class="row-title small">{label(m)}</span>
-                    <span class="row-sub wrap">
-                      {plural(m.tally.requests, 'request')}
-                      {m.tally.failed > 0 ? ` · ${num(m.tally.failed)} failed` : ''}
-                      {known.perDay ? ` · limit ${num(known.perDay)} a day` : ''}
-                      {known.perMinute ? ` · ${num(known.perMinute)} a minute` : ''}
-                    </span>
+                    {gemini ? (
+                      <div class="meters">
+                        <Meter
+                          label="Requests today"
+                          // Google said the day's allowance is gone (maybe used from another device): show it full.
+                          used={usedUp && shown.perDay ? Math.max(usedSince(m.model, since), shown.perDay) : usedSince(m.model, since)}
+                          limit={shown.perDay}
+                        />
+                        <Meter label="Busiest minute" used={peakPerMinute(m.model, since)} limit={shown.perMinute} />
+                      </div>
+                    ) : (
+                      <span class="row-sub wrap">{plural(m.tally.requests, 'request')}</span>
+                    )}
+                    {(m.tally.failed > 0 || shown.reported) && (
+                      <span class="row-sub wrap">
+                        {m.tally.failed > 0 ? `${plural(m.tally.failed, 'request')} turned away or failed` : ''}
+                        {m.tally.failed > 0 && shown.reported ? ' · ' : ''}
+                        {shown.reported ? 'limits as Google reported them for your key' : ''}
+                      </span>
+                    )}
                     {usedUp && (
                       <span class="usage-warn">
                         Out of free uses until {clock(known.dayUsedUpUntil!)} — skipped until then.{' '}
@@ -143,7 +194,13 @@ export function AiUsage() {
           </ul>
         )}
         <p class="field-hint">
-          Google doesn't tell apps their free limits up front; a model's limit shows here once Google reports it. See{' '}
+          Limits shown are Google's free-tier ones as AI Studio lists them — Flash: 20 a day, 5 a minute; Flash-Lite: 500
+          a day, 15 a minute — unless Google has reported yours; keys with billing get more. These count this device's
+          requests; Google's own count, from all your devices, is under Usage in{' '}
+          <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer">
+            AI Studio
+          </a>
+          . See also{' '}
           <a href="https://ai.google.dev/gemini-api/docs/rate-limits" target="_blank" rel="noopener noreferrer">
             Google's rate limits
           </a>

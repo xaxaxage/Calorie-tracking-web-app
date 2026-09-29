@@ -37,6 +37,12 @@ export interface UsageRecord {
   tokensIn?: number;
   /** Output tokens, thinking included. */
   tokensOut?: number;
+  /**
+   * The model that actually answered, when Google says: "gemini-flash-latest"
+   * is a name for whichever Flash is newest, and its requests count toward
+   * that model's limits.
+   */
+  served?: string;
 }
 
 export interface ModelLimits {
@@ -50,18 +56,21 @@ export interface ModelLimits {
 interface UsageData {
   records: UsageRecord[];
   limits: Record<string, ModelLimits>;
+  /** Alias → the model it pointed to last time ("gemini-flash-latest" → "gemini-3.8-flash"). */
+  aliases: Record<string, string>;
 }
 
 function load(): UsageData {
   try {
     const raw = JSON.parse(localStorage.getItem(USAGE_KEY) ?? 'null');
     if (raw && Array.isArray(raw.records)) {
-      return { records: raw.records, limits: raw.limits && typeof raw.limits === 'object' ? raw.limits : {} };
+      const obj = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+      return { records: raw.records, limits: obj(raw.limits) as UsageData['limits'], aliases: obj(raw.aliases) as UsageData['aliases'] };
     }
   } catch {
     // unreadable: start over
   }
-  return { records: [], limits: {} };
+  return { records: [], limits: {}, aliases: {} };
 }
 
 let data: UsageData = load();
@@ -96,8 +105,74 @@ export function recordUsage(record: UsageRecord) {
 }
 
 export function clearUsage() {
-  data = { records: [], limits: data.limits };
+  data = { records: [], limits: data.limits, aliases: data.aliases };
   save();
+}
+
+/** Remember which model an alias pointed to. */
+export function noteServed(requested: string, served: string | undefined) {
+  if (!served || served === requested || data.aliases[requested] === served) return;
+  data = { ...data, aliases: { ...data.aliases, [requested]: served } };
+  save();
+}
+
+/** The model whose limits a request counts toward: an alias resolved to the model it last pointed to. */
+export function realModel(id: string): string {
+  return data.aliases[id] ?? id;
+}
+
+/**
+ * Free-tier limits as Google AI Studio showed them for free keys in September
+ * 2026 (Flash: 5 a minute, 20 a day; Flash-Lite: 15 a minute, 500 a day).
+ * Google changes these and keys with billing get more, so they're only shown,
+ * never enforced; a limit Google reports in a "limit reached" reply wins.
+ */
+export function freeTierLimits(model: string): { perMinute: number; perDay: number } | undefined {
+  const id = model.toLowerCase();
+  if (!id.startsWith('gemini-') || id.includes('pro')) return undefined;
+  if (id.includes('lite')) return { perMinute: 15, perDay: 500 };
+  if (id.includes('flash')) return { perMinute: 5, perDay: 20 };
+  return undefined;
+}
+
+/** The limits to show for a model: what Google reported, else the usual free-tier ones. */
+export function limitsFor(model: string): { perMinute?: number; perDay?: number; reported: boolean } {
+  const real = realModel(model);
+  const learned = { ...data.limits[model], ...data.limits[real] };
+  const free = freeTierLimits(real) ?? freeTierLimits(model);
+  return {
+    perMinute: learned.perMinute ?? free?.perMinute,
+    perDay: learned.perDay ?? free?.perDay,
+    reported: learned.perMinute !== undefined || learned.perDay !== undefined,
+  };
+}
+
+/** Whether Google counted a request toward its limits: it was answered (one turned away at a limit isn't). */
+export const countedByGoogle = (r: UsageRecord) =>
+  r.provider === 'gemini' && r.kind !== 'models' && (r.outcome === 'ok' || r.tokensIn !== undefined);
+
+/** Requests this device made to a model (aliases included) since a time. */
+export function usedSince(model: string, since: number, records = data.records): number {
+  const real = realModel(model);
+  return records.filter((r) => r.at >= since && countedByGoogle(r) && (r.served ?? realModel(r.model)) === real).length;
+}
+
+/**
+ * Before a request: whether this device has already used up a limit Google
+ * reported for the model — skip it for the day, or wait for the minute to pass.
+ */
+export function checkBudget(model: string, now = Date.now()): { skipForDay?: boolean; waitMs?: number } {
+  const real = realModel(model);
+  const learned = { ...data.limits[model], ...data.limits[real] };
+  if (learned.perDay && usedSince(real, pacificDayStart(now)) >= learned.perDay) return { skipForDay: true };
+  if (learned.perMinute) {
+    const recent = data.records
+      .filter((r) => r.at > now - 60_000 && countedByGoogle(r) && (r.served ?? realModel(r.model)) === real)
+      .map((r) => r.at)
+      .sort((a, b) => a - b);
+    if (recent.length >= learned.perMinute) return { waitMs: recent[recent.length - learned.perMinute] + 60_000 - now + 250 };
+  }
+  return {};
 }
 
 let opCounter = 0;
@@ -117,17 +192,21 @@ export function noteLimit(model: string, scope: 'minute' | 'day', limit: number 
   save();
 }
 
-/** True while Google has said the model's daily free uses are gone. */
+/** True while Google has said the model's daily free uses are gone (for an alias: the model it points to). */
 export function dayUsedUp(model: string, now = Date.now()): boolean {
-  return (data.limits[model]?.dayUsedUpUntil ?? 0) > now;
+  return Math.max(data.limits[model]?.dayUsedUpUntil ?? 0, data.limits[realModel(model)]?.dayUsedUpUntil ?? 0) > now;
 }
 
 /** Try a model again before its limit resets (e.g. after turning on billing). */
 export function forgetDayLimit(model: string) {
-  const cur = data.limits[model];
-  if (!cur?.dayUsedUpUntil) return;
-  const { dayUsedUpUntil: _gone, ...rest } = cur;
-  data = { ...data, limits: { ...data.limits, [model]: rest } };
+  const limits = { ...data.limits };
+  for (const id of new Set([model, realModel(model)])) {
+    const cur = limits[id];
+    if (!cur?.dayUsedUpUntil) continue;
+    const { dayUsedUpUntil: _gone, ...rest } = cur;
+    limits[id] = rest;
+  }
+  data = { ...data, limits };
   save();
 }
 
@@ -183,6 +262,8 @@ export function nextPacificMidnight(now = Date.now()): number {
 
 export interface QuotaInfo {
   scope: 'minute' | 'day' | 'unknown';
+  /** The model the limit belongs to (for an alias, the model behind it). */
+  model?: string;
   /** The limit's size, when Google says. */
   limit?: number;
   /** How long Google asks to wait. */
@@ -215,8 +296,10 @@ export function parseGeminiQuota(message: string): QuotaInfo {
   const scope: QuotaInfo['scope'] = /PerDay/i.test(id) ? 'day' : /PerMinute/i.test(id) ? 'minute' : 'unknown';
   const limit = Number(violation?.quotaValue ?? /limit:\s*(\d+)/.exec(text)?.[1]);
   const retryAfterMs = seconds(retry) ?? seconds(/retry in ([\d.]+s)/i.exec(text)?.[1]);
+  const model = violation?.quotaDimensions?.model;
   return {
     scope,
+    ...(typeof model === 'string' && model ? { model } : {}),
     ...(Number.isFinite(limit) && limit > 0 ? { limit } : {}),
     ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
   };
@@ -270,9 +353,25 @@ export function perModelToday(records: UsageRecord[], now = Date.now()): { model
   const groups = new Map<string, UsageRecord[]>();
   for (const r of records) {
     if (r.at < since || !counts(r)) continue;
-    groups.set(r.model, [...(groups.get(r.model) ?? []), r]);
+    const model = r.provider === 'gemini' ? r.served ?? realModel(r.model) : r.model;
+    groups.set(model, [...(groups.get(model) ?? []), r]);
   }
   return [...groups]
     .map(([model, rs]) => ({ model, provider: rs[0].provider, tally: tally(rs) }))
     .sort((a, b) => b.tally.requests - a.tally.requests);
+}
+
+/** The most requests Google counted for a model within any 60 seconds since a time (AI Studio's "peak RPM"). */
+export function peakPerMinute(model: string, since: number, records = data.records): number {
+  const real = realModel(model);
+  const times = records
+    .filter((r) => r.at >= since && countedByGoogle(r) && (r.served ?? realModel(r.model)) === real)
+    .map((r) => r.at)
+    .sort((a, b) => a - b);
+  let peak = 0;
+  for (let i = 0, j = 0; j < times.length; j++) {
+    while (times[j] - times[i] >= 60_000) i++;
+    peak = Math.max(peak, j - i + 1);
+  }
+  return peak;
 }

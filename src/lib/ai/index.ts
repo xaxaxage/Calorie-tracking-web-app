@@ -5,8 +5,8 @@ export type { EstimatedItem, EstimateInput, PreparedImage } from './shared';
 
 /** Aliases Google keeps pointing at its newest Flash models. */
 export const GEMINI_SHORTCUTS: (GeminiModelInfo & { hint: string })[] = [
-  { id: 'gemini-flash-lite-latest', label: 'Flash-Lite (newest)', hint: 'most free uses per day' },
-  { id: 'gemini-flash-latest', label: 'Flash (newest)', hint: 'more accurate, fewer free uses' },
+  { id: 'gemini-flash-lite-latest', label: 'Flash-Lite (newest)', hint: 'most free uses' },
+  { id: 'gemini-flash-latest', label: 'Flash (newest)', hint: 'more accurate' },
 ];
 
 const MAX_MODELS_TO_TRY = 5;

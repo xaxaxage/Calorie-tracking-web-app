@@ -12,11 +12,14 @@ import {
   type EstimateInput,
 } from './shared';
 import {
+  checkBudget,
   dayUsedUp,
   modelLimits,
   newOp,
   noteLimit,
+  noteServed,
   parseGeminiQuota,
+  realModel,
   recordUsage,
   type QuotaInfo,
   type UsageKind,
@@ -119,15 +122,18 @@ export function usageKind(input: EstimateInput): UsageKind {
 }
 
 /** How a failed request shows up in the usage log; notes what Google said about its limits. */
-function failure(err: unknown, model: string, signal?: AbortSignal): UsageOutcome {
-  if (signal?.aborted) return 'cancelled';
+function failure(err: unknown, model: string, signal?: AbortSignal): { outcome: UsageOutcome; served?: string } {
+  if (signal?.aborted) return { outcome: 'cancelled' };
   if (err instanceof ApiError && err.status === 429) {
     const quota = parseGeminiQuota(err.message ?? '');
-    if (quota.scope !== 'unknown') noteLimit(model, quota.scope, quota.limit);
-    return quota.scope === 'day' ? 'day-limit' : quota.scope === 'minute' ? 'minute-limit' : 'limit';
+    // Google names the model the limit belongs to — for an alias, the model behind it.
+    noteServed(model, quota.model);
+    if (quota.scope !== 'unknown') noteLimit(quota.model ?? model, quota.scope, quota.limit);
+    const outcome = quota.scope === 'day' ? 'day-limit' : quota.scope === 'minute' ? 'minute-limit' : 'limit';
+    return { outcome, ...(quota.model ? { served: quota.model } : {}) };
   }
-  if (err instanceof ApiError && err.status >= 500) return 'busy';
-  return 'failed';
+  if (err instanceof ApiError && err.status >= 500) return { outcome: 'busy' };
+  return { outcome: 'failed' };
 }
 
 async function callModel(ai: GoogleGenAI, model: string, input: EstimateInput, op: string, signal?: AbortSignal) {
@@ -153,13 +159,16 @@ async function callModel(ai: GoogleGenAI, model: string, input: EstimateInput, o
       },
     });
   } catch (err) {
-    recordUsage({ ...logged, ms: Date.now() - started, outcome: failure(err, model, signal) });
+    recordUsage({ ...logged, ms: Date.now() - started, ...failure(err, model, signal) });
     throw err;
   }
+  const served = response.modelVersion;
+  noteServed(model, served);
   const meta = response.usageMetadata;
   const out = (meta?.candidatesTokenCount ?? 0) + (meta?.thoughtsTokenCount ?? 0);
   const done = {
     ...logged,
+    ...(served ? { served } : {}),
     ms: Date.now() - started,
     ...(meta?.promptTokenCount ? { tokensIn: meta.promptTokenCount } : {}),
     ...(out ? { tokensOut: out } : {}),
@@ -205,7 +214,15 @@ export async function estimateWithGemini(
 
   // Models whose daily free uses are gone are left out until Google resets them. If that's
   // all of them, one request to the chosen model: the limit may have been lifted since.
-  const usable = models.filter((m) => !dayUsedUp(m));
+  // An alias for a model already in the list ("newest Flash" = 3.8 Flash) shares its limits,
+  // so each model is tried once.
+  const seen = new Set<string>();
+  const usable = models.filter((m) => {
+    const real = realModel(m);
+    if (seen.has(real) || dayUsedUp(m) || checkBudget(m).skipForDay) return false;
+    seen.add(real);
+    return true;
+  });
   const order = usable.length > 0 ? usable : models.slice(0, 1);
   if (usable.length > 0 && order[0] !== models[0]) {
     onProgress?.(`${labelFor(models[0])} is out of free uses${resetNote(models[0])} — using ${labelFor(order[0])}…`);
@@ -215,6 +232,16 @@ export async function estimateWithGemini(
     if (last) {
       const why = last.kind === 'quota' ? 'out of free uses' : last.kind === 'busy' ? 'busy' : 'unavailable';
       onProgress?.(`${labelFor(last.model)} is ${why} — trying ${labelFor(model)}…`);
+    }
+    // This device already used the per-minute limit Google reported: wait briefly, or move on.
+    const { waitMs } = checkBudget(model);
+    if (waitMs !== undefined) {
+      if (waitMs > MAX_LIMIT_WAIT && index < order.length - 1) {
+        last = { kind: 'quota', err: undefined, model, quota: { scope: 'minute' } };
+        continue;
+      }
+      onProgress?.(`${labelFor(model)} is at its per-minute limit — waiting ${Math.max(1, Math.round(waitMs / 1000))} s…`);
+      await wait(Math.min(waitMs, 60_000), signal);
     }
     for (let attempt = 0; attempt < 2; attempt++) {
       try {

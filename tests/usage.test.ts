@@ -5,10 +5,11 @@ const json = (status: number, body: unknown) =>
 
 const RICE = { name: 'White rice, cooked', grams: 150, kcal_per_100g: 130, protein_per_100g: 2.7, carbs_per_100g: 28, fat_per_100g: 0.3 };
 
-const reply = (usage?: object) =>
+const reply = (usage?: object, modelVersion?: string) =>
   json(200, {
     candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify({ items: [RICE] }) }] }, finishReason: 'STOP' }],
     ...(usage ? { usageMetadata: usage } : {}),
+    ...(modelVersion ? { modelVersion } : {}),
   });
 
 /** A 429 shaped like Google's, with the limit that was hit and how long to wait. */
@@ -68,9 +69,9 @@ describe("reading Google's limit errors", () => {
   it('tells a daily limit from a per-minute one, with the limit and the wait', async () => {
     const { usage } = await load();
     const day = await limited('Day', '20', '38.4s').text();
-    expect(usage.parseGeminiQuota(`{"error":${JSON.stringify(JSON.parse(day).error)}}`)).toEqual({ scope: 'day', limit: 20, retryAfterMs: 38400 });
+    expect(usage.parseGeminiQuota(`{"error":${JSON.stringify(JSON.parse(day).error)}}`)).toEqual({ scope: 'day', model: 'gemini-3.8-flash', limit: 20, retryAfterMs: 38400 });
     const minute = await limited('Minute', '10', '7s').text();
-    expect(usage.parseGeminiQuota(minute)).toEqual({ scope: 'minute', limit: 10, retryAfterMs: 7000 });
+    expect(usage.parseGeminiQuota(minute)).toEqual({ scope: 'minute', model: 'gemini-3.8-flash', limit: 10, retryAfterMs: 7000 });
     // Details missing: fall back to the message text, or nothing.
     expect(usage.parseGeminiQuota('{"error":{"message":"Quota exceeded, limit: 5. Please retry in 2s."}}')).toEqual({ scope: 'unknown', limit: 5, retryAfterMs: 2000 });
     expect(usage.parseGeminiQuota('Resource has been exhausted.')).toEqual({ scope: 'unknown' });
@@ -153,6 +154,70 @@ describe('usage log', () => {
     const calls = stubFetch((model) => (model === 'gemini-3.8-flash' ? limited('Minute', '10', '40s') : reply()));
     await gemini.estimateWithGemini('AIza', ['gemini-3.8-flash', 'gemini-flash-lite-latest'], { kind: 'text', text: 'rice' });
     expect(calls).toEqual(['gemini-3.8-flash', 'gemini-flash-lite-latest']);
+  });
+
+  it('learns which model an alias points to, and counts and skips by that model', async () => {
+    const { usage, gemini } = await load();
+    // "Newest Flash" is 3.8 Flash; 3.8 Flash has used its 20 for the day.
+    const calls = stubFetch((model) => {
+      if (model === 'gemini-flash-latest') return reply({ promptTokenCount: 10 }, 'gemini-3.8-flash');
+      if (model === 'gemini-3.8-flash') return limited('Day', '20', '50000s');
+      return reply(undefined, 'gemini-3.5-flash-lite');
+    });
+    await gemini.estimateWithGemini('AIza', ['gemini-flash-latest'], { kind: 'text', text: 'rice' });
+    expect(usage.realModel('gemini-flash-latest')).toBe('gemini-3.8-flash');
+    expect(usage.usedSince('gemini-3.8-flash', 0)).toBe(1);
+    expect(usage.usageRecords()[0].served).toBe('gemini-3.8-flash');
+
+    // 3.8 Flash runs out: the alias is skipped along with it, without a request of its own.
+    await gemini.estimateWithGemini('AIza', ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-flash-lite-latest'], { kind: 'text', text: 'rice' });
+    expect(calls).toEqual(['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-flash-lite-latest']);
+    expect(usage.dayUsedUp('gemini-flash-latest')).toBe(true);
+    await gemini.estimateWithGemini('AIza', ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-flash-lite-latest'], { kind: 'text', text: 'rice' });
+    expect(calls.slice(3)).toEqual(['gemini-flash-lite-latest']);
+    expect(usage.realModel('gemini-flash-lite-latest')).toBe('gemini-3.5-flash-lite');
+  });
+
+  it('a 429 on an alias marks the model behind it', async () => {
+    const { usage, gemini } = await load();
+    stubFetch((model) => (model === 'gemini-flash-latest' ? limited('Day', '20', '50000s') : reply()));
+    await gemini.estimateWithGemini('AIza', ['gemini-flash-latest', 'gemini-flash-lite-latest'], { kind: 'text', text: 'rice' });
+    expect(usage.realModel('gemini-flash-latest')).toBe('gemini-3.8-flash');
+    expect(usage.dayUsedUp('gemini-3.8-flash')).toBe(true);
+    expect(usage.modelLimits('gemini-3.8-flash').perDay).toBe(20);
+  });
+
+  it('keeps to a per-minute limit Google reported, before sending', async () => {
+    const { usage, gemini } = await load();
+    usage.noteLimit('gemini-3.8-flash', 'minute', 2);
+    const now = Date.now();
+    for (const at of [now - 50_000, now - 5_000]) {
+      usage.recordUsage({ at, op: String(at), provider: 'gemini', model: 'gemini-3.8-flash', kind: 'text', outcome: 'ok', ms: 1 });
+    }
+    const wait = usage.checkBudget('gemini-3.8-flash', now).waitMs!;
+    expect(wait).toBeGreaterThan(9_000);
+    expect(wait).toBeLessThan(11_000);
+    // Waiting ~10 s is fine for the last model; with another model to try, a longer wait moves on.
+    usage.recordUsage({ at: now - 1000, op: 'x', provider: 'gemini', model: 'gemini-3.8-flash', kind: 'text', outcome: 'ok', ms: 1 });
+    usage.noteLimit('gemini-3.8-flash', 'minute', 3);
+    const calls = stubFetch(() => reply());
+    usage.recordUsage({ at: now - 2000, op: 'y', provider: 'gemini', model: 'gemini-3.8-flash', kind: 'text', outcome: 'ok', ms: 1 });
+    expect(usage.checkBudget('gemini-3.8-flash').waitMs).toBeGreaterThan(15_000);
+    const result = await gemini.estimateWithGemini('AIza', ['gemini-3.8-flash', 'gemini-flash-lite-latest'], { kind: 'text', text: 'rice' });
+    expect(result.model).toBe('gemini-flash-lite-latest');
+    expect(calls).toEqual(['gemini-flash-lite-latest']);
+  });
+
+  it('shows the usual free-tier limits, and the ones Google reported instead', async () => {
+    const { usage } = await load();
+    expect(usage.limitsFor('gemini-3.8-flash')).toEqual({ perMinute: 5, perDay: 20, reported: false });
+    expect(usage.limitsFor('gemini-flash-lite-latest')).toEqual({ perMinute: 15, perDay: 500, reported: false });
+    expect(usage.limitsFor('gemini-3.8-pro').perDay).toBeUndefined();
+    expect(usage.limitsFor('gemma-3-27b-it').perDay).toBeUndefined();
+    usage.noteLimit('gemini-3.8-flash', 'day', 250);
+    expect(usage.limitsFor('gemini-3.8-flash')).toEqual({ perMinute: 5, perDay: 250, reported: true });
+    // Only limits Google reported hold requests back; the free-tier numbers are just shown.
+    expect(usage.checkBudget('gemini-3.7-flash')).toEqual({});
   });
 
   it('logs the model list separately; it does not count toward limits', async () => {

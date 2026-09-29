@@ -2122,3 +2122,48 @@
 .photo-viewer-actions > * {
   flex: 1;
 }
+
+/* Usage meters: the fill shows how close to the limit (teal → orange → red), the track is a light step of
+   the same colour, and the numbers are always written out beside it. */
+.meters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.meter-row {
+  --meter: var(--teal);
+  display: grid;
+  grid-template-columns: minmax(96px, auto) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.meter-row.high {
+  --meter: var(--orange);
+}
+.meter-row.full {
+  --meter: var(--protein);
+}
+.meter-label {
+  color: var(--muted);
+}
+.meter {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--meter) 16%, var(--surface));
+  overflow: hidden;
+}
+.meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: var(--meter);
+}
+.meter-value {
+  min-width: 56px;
+  text-align: right;
+  color: var(--ink);
+  font-weight: 600;
+}

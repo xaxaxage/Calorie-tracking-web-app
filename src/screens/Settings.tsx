@@ -17,7 +17,7 @@ import { goBack } from '../lib/router';
 import { showToast } from '../lib/toast';
 import { ChevronLeft, ChevronRight } from '../components/Icons';
 import { GEMINI_SHORTCUTS, listGeminiModels } from '../lib/ai';
-import { tally, useUsage } from '../lib/ai/usage';
+import { limitsFor, tally, useUsage } from '../lib/ai/usage';
 import { fmtBytes, listPhotos, totalBytes, usePhotos } from '../lib/photos';
 import { SyncSettings } from './SyncSettings';
 import { AppearanceSettings } from './AppearanceSettings';
@@ -407,8 +407,10 @@ function AiSettings() {
           />
           <GeminiModelPicker />
           <p class="field-hint">
-            Free keys can use Flash and Flash-Lite models, each with its own daily limit; Pro models need billing turned on
-            in Google AI Studio. On the free tier Google may use what you send (photos and descriptions) to improve its
+            Free keys can use Flash and Flash-Lite models, each with its own limits — at the moment 20 requests a day (5 a
+            minute) for each Flash model and 500 a day (15 a minute) for Flash-Lite; Pro models need billing turned on in
+            Google AI Studio. With <strong>Switch models automatically</strong> on, Flash-Lite takes over when a Flash model
+            runs out. On the free tier Google may use what you send (photos and descriptions) to improve its
             products, so don't include anything private.
           </p>
         </>
@@ -461,6 +463,12 @@ function UsageLink() {
 
 const CUSTOM = '__custom';
 
+/** ", 20 free a day" for the model picker, when the limit is known. */
+function freePerDay(model: string): string {
+  const { perDay } = limitsFor(model);
+  return perDay ? `, ${perDay.toLocaleString()} free a day` : '';
+}
+
 function GeminiModelPicker() {
   const { settings } = useData();
   const [loading, setLoading] = useState(false);
@@ -509,13 +517,17 @@ function GeminiModelPicker() {
           {GEMINI_SHORTCUTS.map((m) => (
             <option value={m.id}>
               {m.label} — {m.hint}
+              {freePerDay(m.id)}
             </option>
           ))}
         </optgroup>
         {listed.length > 0 && (
           <optgroup label={`Models your key can use (${listed.length})`}>
             {listed.map((m) => (
-              <option value={m.id}>{m.label === m.id ? m.id : `${m.label} · ${m.id}`}</option>
+              <option value={m.id}>
+                {m.label === m.id ? m.id : `${m.label} · ${m.id}`}
+                {freePerDay(m.id)}
+              </option>
             ))}
           </optgroup>
         )}

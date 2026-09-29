@@ -89,9 +89,12 @@ The app can use either AI; pick one in **Settings → AI estimates**:
   asks for (up to 15) instead of switching to a lesser model.
 
   **AI usage** (**Settings → AI estimates → AI usage**) lists every request this device sent: today's count and
-  tokens, requests per model since Google's daily reset with the limits Google has reported ("limit 20 a day",
-  "out of free uses until 09:00", **Try it again now**), the last 7 days, and recent estimates with each request
-  they took (model, result, time, tokens). Kept on the device only.
+  tokens; per model since Google's daily reset, meters like AI Studio's — requests today against the daily limit
+  and the busiest minute against the per-minute one, using Google's free-tier limits (Flash: 20 a day, 5 a minute;
+  Flash-Lite: 500 a day, 15 a minute) unless Google has reported yours — with "out of free uses until 09:00" and
+  **Try it again now**; the last 7 days; and recent estimates with each request they took (model, result, time,
+  tokens). Aliases like "Flash (newest)" are counted under the model that answered, as AI Studio does, so an
+  alias whose model is used up is skipped too, and each model is tried once per estimate. Kept on the device only.
 
   On the free tier Google may use what you send to improve its products. Free-tier availability depends on your
   country.
