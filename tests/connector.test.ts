@@ -9,7 +9,7 @@ describe('connector address in the app', () => {
     expect(connectorHost('https://calorie-tracker-abc.vercel.app/mcp/123?tz=x')).toBe('calorie-tracker-abc.vercel.app');
     expect(connectorHost('not an address')).toBe('');
     expect(connectorHost('localhost')).toBe('');
-    expect(SHARED_CONNECTOR_HOST).toBe('calorie-tracking-web-app.vercel.app');
+    expect(SHARED_CONNECTOR_HOST).toBe('calories.xaxaxage.vercel.app');
   });
 
   it('adds the time zone, and the relays only when they are not the default ones', () => {

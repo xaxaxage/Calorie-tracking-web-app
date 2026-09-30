@@ -2,6 +2,6 @@
 declare const __APP_VERSION__: string;
 
 interface ImportMetaEnv {
-  /** The shared Claude connector's host, e.g. "calorie-tracking-web-app.vercel.app" (see src/lib/connector.ts). */
+  /** The shared Claude connector's host, e.g. "calories.xaxaxage.vercel.app" (see src/lib/connector.ts). */
   readonly VITE_CONNECTOR_HOST?: string;
 }

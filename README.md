@@ -200,7 +200,7 @@ use the Claude Desktop extension.
 ### Host the connector
 
 The connector is `mcp/cloud.ts`, built for [Vercel](https://vercel.com)'s free plan (it runs anywhere Node.js
-22 runs, too). The app's own builds use `calorie-tracking-web-app.vercel.app`; to host one — for yourself,
+22 runs, too). The app's own builds use `calories.xaxaxage.vercel.app`; to host one — for yourself,
 or for your friends — do this once:
 
 1. Open [vercel.com/new](https://vercel.com/new), sign in with GitHub and **import this repository** (fork

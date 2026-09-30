@@ -8,7 +8,7 @@ import { DEFAULT_RELAYS } from './sync/state';
  */
 
 /** The connector this app uses unless someone picks their own; a fork sets VITE_CONNECTOR_HOST at build time. */
-export const SHARED_CONNECTOR_HOST = (import.meta.env.VITE_CONNECTOR_HOST ?? '').trim() || 'calorie-tracking-web-app.vercel.app';
+export const SHARED_CONNECTOR_HOST = (import.meta.env.VITE_CONNECTOR_HOST ?? '').trim() || 'calories.xaxaxage.vercel.app';
 
 const HOST_KEY = 'calorie-tracker:connector-host';
 
