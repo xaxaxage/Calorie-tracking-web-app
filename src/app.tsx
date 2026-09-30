@@ -23,6 +23,7 @@ import { MealPhotos } from './screens/MealPhotos';
 import { isDish } from './lib/dish';
 import { builtinFood } from './lib/foods';
 import { ChevronLeft } from './components/Icons';
+import { Analytics } from '@vercel/analytics/react';
 
 function Missing({ message }: { message: string }) {
   return (
@@ -183,6 +184,7 @@ export function App() {
         </div>
       )}
       <ToastHost raised={withNav} />
+      <Analytics />
     </>
   );
 }
