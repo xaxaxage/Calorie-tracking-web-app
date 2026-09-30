@@ -20,8 +20,9 @@ function vercelOutput(): Plugin {
         fileName: `${FUNCTION}/.vc-config.json`,
         source: json({ runtime: 'nodejs22.x', handler: 'index.mjs', launcherType: 'Nodejs', shouldAddHelpers: false, maxDuration: 60 }),
       });
-      // Every path goes to the function: /mcp/<token> is the connector (the token also passed as a
-      // query, in case the function sees the rewritten path), / says whether it's set up.
+      // Every path goes to the function: /mcp/<address> is a person's connector, /link makes an
+      // address for the app, / says whether it's set up. (The address and the action are also passed
+      // as queries, in case the function sees the rewritten path.)
       this.emitFile({
         type: 'asset',
         fileName: 'config.json',
@@ -29,6 +30,7 @@ function vercelOutput(): Plugin {
           version: 3,
           routes: [
             { src: '^/mcp/([^/]+)/?$', dest: '/mcp?token=$1' },
+            { src: '^/link/?$', dest: '/mcp?action=link' },
             { handle: 'filesystem' },
             { src: '/(.*)', dest: '/mcp' },
           ],

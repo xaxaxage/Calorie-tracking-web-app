@@ -20,6 +20,7 @@ import { GEMINI_SHORTCUTS, listGeminiModels } from '../lib/ai';
 import { limitsFor, tally, useUsage } from '../lib/ai/usage';
 import { fmtBytes, listPhotos, totalBytes, usePhotos } from '../lib/photos';
 import { SyncSettings } from './SyncSettings';
+import { ClaudeSettings } from './ClaudeSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { quip } from '../lib/humor';
 import { loadSyncConfig } from '../lib/sync/state';
@@ -168,6 +169,8 @@ export function Settings() {
       <AiSettings />
 
       <SyncSettings />
+
+      <ClaudeSettings />
 
       <section class="card stack-12" aria-labelledby="data-title">
         <h2 id="data-title" class="section-title">

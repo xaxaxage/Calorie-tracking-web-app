@@ -56,13 +56,13 @@ const MESSAGES: Record<Host, { missing: string; invalid: string; retired: string
   },
   cloud: {
     missing:
-      "The sync key is not set. In the app, open Settings → Sync, turn sync on and copy the 12 words; then add them as the SYNC_KEY environment variable of this connector's Vercel project and redeploy it.",
+      "This connector isn't set up yet. Whoever runs it needs to set CONNECTOR_SECRET in its Vercel project (Settings → Environment Variables) and redeploy.",
     invalid:
-      "The sync key is not a valid 12-word phrase. Copy it again from the app (Settings → Sync → Show sync key), put it in SYNC_KEY of this connector's Vercel project (Settings → Environment Variables) and redeploy.",
+      "The sync key in this connector's SYNC_KEY setting is not a valid 12-word phrase. Copy your connector address from the app instead (Settings → Use with Claude).",
     retired:
-      "The sync key was changed in the app, so the one this connector has doesn't open the food log anymore. Put the new 12 words (in the app: Settings → Sync between devices → Show sync key) in SYNC_KEY of the connector's Vercel project and redeploy. The connector's address changes with the key: copy the new one from the app (Settings → Sync → Use with Claude on your phone) into Claude's connector settings.",
+      "The sync key was changed in the app, so this connector address doesn't open the food log anymore. Copy the new address in the app (Settings → Use with Claude) and replace this connector's address in Claude (Customize → Connectors).",
     noData:
-      "No synced food log was found for this sync key. In the app, check that sync is on (Settings → Sync) and that the 12 words match SYNC_KEY in the connector's Vercel project.",
+      "No synced food log was found for this connector address. In the app, check that sync is on (Settings → Sync between devices), then copy the address again (Settings → Use with Claude).",
   },
 };
 
@@ -79,6 +79,11 @@ export interface ConnectorOptions {
   /** How it shows up in the app's device list. */
   device: Omit<DeviceInfo, 'version'>;
   host: Host;
+  /**
+   * Runs before each request's work, while it has the food log to itself: an online connector
+   * serving several people puts this person's log in place here.
+   */
+  enter?: () => void;
 }
 
 export interface Connector {
@@ -95,10 +100,19 @@ export interface Connector {
 
 type Reply = { content: { type: 'text'; text: string }[]; isError?: boolean };
 
+// One request at a time, even across people, so a write never races a pull and each request
+// has the (one, shared) in-memory store to itself.
+let chain: Promise<unknown> = Promise.resolve();
+function serial<T>(task: () => Promise<T>): Promise<T> {
+  const run = chain.then(task, task);
+  chain = run.catch(() => undefined);
+  return run;
+}
+
 const reply = (value: unknown): Reply => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 1) }] });
 const failure = (message: string): Reply => ({ content: [{ type: 'text', text: message }], isError: true });
 
-export function createConnector({ syncKey, relays, device, host }: ConnectorOptions): Connector {
+export function createConnector({ syncKey, relays, device, host, enter = () => {} }: ConnectorOptions): Connector {
   const say = MESSAGES[host];
   const phrase = normalizePhrase(syncKey);
   const setupProblem = !phrase ? say.missing : !isValidPhrase(phrase) ? say.invalid : null;
@@ -109,13 +123,11 @@ export function createConnector({ syncKey, relays, device, host }: ConnectorOpti
   /** Parts no relay accepted yet; retried on the next request. */
   const pending = new Set<string>();
 
-  // One request at a time, so a write never races a pull.
-  let chain: Promise<unknown> = Promise.resolve();
-  function serial<T>(task: () => Promise<T>): Promise<T> {
-    const run = chain.then(task, task);
-    chain = run.catch(() => undefined);
-    return run;
-  }
+  const mine = <T>(task: () => Promise<T>) =>
+    serial(() => {
+      enter();
+      return task();
+    });
 
   async function retryPending(s: RelaySync) {
     if (pending.size === 0) return;
@@ -140,7 +152,7 @@ export function createConnector({ syncKey, relays, device, host }: ConnectorOpti
   }
 
   function read(run: () => unknown | Promise<unknown>) {
-    return serial(async (): Promise<Reply> => {
+    return mine(async (): Promise<Reply> => {
       if (!sync) return failure(setupProblem!);
       try {
         let note: string | undefined;
@@ -161,7 +173,7 @@ export function createConnector({ syncKey, relays, device, host }: ConnectorOpti
   }
 
   function write(run: () => WriteResult<object>) {
-    return serial(async (): Promise<Reply> => {
+    return mine(async (): Promise<Reply> => {
       if (!sync) return failure(setupProblem!);
       try {
         await refresh(sync);
@@ -194,7 +206,7 @@ export function createConnector({ syncKey, relays, device, host }: ConnectorOpti
     setupProblem,
     sync,
     newServer,
-    warmUp: () => (sync ? serial(() => refresh(sync)) : Promise.resolve()),
+    warmUp: () => (sync ? mine(() => refresh(sync)) : Promise.resolve()),
   };
 }
 

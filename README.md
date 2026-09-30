@@ -54,8 +54,8 @@ barcode scanner, photo estimate and quick add.
   bars grow, buttons give a little when pressed, and new ingredients and toasts slide in. **Settings →
   Appearance → Animations** turns it all off; it's also off while the phone's Reduce Motion setting is on.
 - **Settings** – daily calorie and macro goals, appearance, API key, sync, export / import a backup, delete all data.
-- **Claude Desktop, claude.ai and the Claude phone apps** – ask Claude about your food log or log meals by
-  describing them (see below).
+- **Claude** (claude.ai, the phone apps, Claude Desktop) – ask Claude about your food log or log meals by
+  describing them; each person copies their own connector address from Settings (see below).
 - Works offline (except online search, barcode lookups and photo estimates) once loaded.
 
 ## Use it on your iPhone
@@ -159,18 +159,91 @@ Things to know: public relays are run by volunteers and can be slow or go away, 
 and why each device keeps a full copy — keep exporting a backup now and then. Anyone with the 12 words can read
 and change your log and use your AI keys. **Delete all entries** deletes on every synced device.
 
-## Use with Claude Desktop
+## Use with Claude
 
-Claude Desktop can read and write your food log: ask *"what did I eat today?"*, *"how was my protein this
-week?"*, or just say *"log lunch: chicken caesar salad and a flat white"* — Claude estimates it (a dish with
-its ingredients, like the app's own AI) and it appears in the app on your phone within seconds.
+Claude can read and write your food log — on claude.ai, in the Claude app on your phone and in Claude
+Desktop: ask *"what did I eat today?"*, *"how was my protein this week?"*, or just say *"log lunch: chicken
+caesar salad and a flat white"* — Claude estimates it (a dish with its ingredients, like the app's own AI)
+and it appears in the app on your phone within seconds.
 
-It's a small local connector (an MCP server) that uses the same encrypted sync as your devices, so turn on
-**Sync between devices** first.
+It works through a connector (an MCP server) that uses the same encrypted sync as your devices, so turn on
+**Sync between devices** first. Then:
+
+1. In the app: **Settings → Use with Claude → Show my connector address → Copy the address**.
+2. In Claude on a computer (claude.ai or Claude Desktop): **Customize → Connectors → + → Add custom
+   connector**, name it *Calorie Tracker*, paste the address, **Add**. (Custom connectors work on every
+   Claude plan; the Free plan allows one.)
+3. That's it — it works in the Claude phone app too (connectors are added on the web or desktop, then used
+   everywhere).
+
+Everyone using the app gets their own address the same way; one connector server answers for all of them.
+It appears in the app's device list as **Claude (online connector)**.
+
+**What Claude can do:** `get_day` (a day by meal, with totals against your goals), `get_summary` (daily
+totals and averages over a period), `search_foods` (your favorites, recent foods, the food list and — when
+asked — Open Food Facts), `log_food` (known foods or estimates; dishes with ingredients), `update_entry`
+(amount, meal, day, name — a dish's ingredients scale with the amount), `delete_entry` and `set_goals`.
+Your AI keys are never given to Claude.
+
+**How the address works:** it is `https://<server>/mcp/<your sync key, sealed>?tz=<your time zone>`. The
+server seals your sync key with its own secret (when the app asks it to, at `/link`), so the address
+doesn't show the key to anyone, and only that server can open it. Treat it like a password: anyone with it
+can read and change your log. The time zone makes "today" and meal times match your phone (servers run on
+UTC); if your sync uses relays other than the app's defaults, the address names them too (`&r=…`). After
+you change your sync key, the old address stops working: copy the new one and replace it in Claude.
+
+**Privacy:** to answer Claude, the connector server opens your food log, so whoever runs it could see it —
+for this app's shared server, that's its maker. What it reads goes into your conversation with Claude, like
+anything else you share there. For a log that's opened only by you, host the connector yourself (below) or
+use the Claude Desktop extension.
+
+### Host the connector
+
+The connector is `mcp/cloud.ts`, built for [Vercel](https://vercel.com)'s free plan (it runs anywhere Node.js
+22 runs, too). The app's own builds use `calorie-tracking-web-app.vercel.app`; to host one — for yourself,
+or for your friends — do this once:
+
+1. Open [vercel.com/new](https://vercel.com/new), sign in with GitHub and **import this repository** (fork
+   it first if it isn't in your account). Set **Application Preset** to *Other*; the rest comes from
+   `vercel.json`.
+2. Add an **Environment Variable** `CONNECTOR_SECRET`: 32 or more random characters (from a password
+   generator). It seals everyone's addresses; changing it later makes everyone copy a new address. Deploy.
+3. Open the project's address listed under **Domains** (not a single deployment's address, which Vercel
+   keeps private). It should say *"Connector addresses: ready"*.
+4. In the app: **Settings → Use with Claude → Use your own connector server**, enter that address, **Use**.
+   Or, for everyone using your build of the app, set `SHARED_CONNECTOR_HOST` in `src/lib/connector.ts` (or
+   `VITE_CONNECTOR_HOST` when building).
+
+Optional settings: `TIME_ZONE` (for addresses without `?tz=`), `RELAYS` (for addresses without `&r=`) and
+`DEVICE_NAME` (its name in the app's device list). Without `CONNECTOR_SECRET`, a valid `SYNC_KEY` (12 words)
+seals addresses instead, and also keeps answering the older single-person address made from it
+(`/mcp/<32 hex characters>`).
+
+**Free plan limits** (per month, per Vercel account): 1,000,000 function calls, 4 hours of active CPU (time
+spent waiting for the sync relays doesn't count), 360 GB-hours of memory, for personal, non-commercial use.
+Going over pauses the project until the 30-day window resets; there's no bill. A question to Claude takes a
+few calls of roughly 0.1–0.3 s of CPU each, so 10–20 people asking a few times a day fit — watch **Usage**
+in the Vercel dashboard. People's logs are kept in the server's memory only while it's running.
+
+<details>
+<summary>Somewhere other than Vercel</summary>
+
+`npm run build:cloud` builds it to `.vercel/output/functions/mcp.func/index.mjs`, one file with everything
+included. Any host that runs Node.js 22 and gives it an HTTPS address works: start it with
+`CONNECTOR_SECRET="…" PORT=8787 node index.mjs`. It speaks MCP's Streamable HTTP without sessions, so it
+suits serverless hosts.
+
+</details>
+
+### Claude Desktop extension (runs on your computer)
+
+Instead of the online connector, Claude Desktop can run the connector on your computer, so your food log is
+opened only there (it doesn't reach Claude on your phone, though). It uses the same encrypted sync as your
+devices, so turn on **Sync between devices** first.
 
 **Install (Windows or Mac):**
 
-1. Download the extension: in the app, **Settings → Sync between devices → Use with Claude Desktop →
+1. Download the extension: in the app, **Settings → Use with Claude → Claude Desktop extension →
    Download**, or directly:
    [`calorie-tracker.mcpb`](https://xaxaxage.github.io/Calorie-tracking-web-app/mcp/calorie-tracker.mcpb).
 2. Open the file with Claude Desktop: double-click it, or drag it into **Settings → Extensions**. Click
@@ -183,12 +256,7 @@ Claude Desktop runs the extension with its own built-in Node.js; nothing else ne
 download and open the file again. It appears in the app's device list as **Claude Desktop · Windows**. If you
 change the sync key, paste the new words into the extension's settings too.
 
-**What Claude can do:** `get_day` (a day by meal, with totals against your goals), `get_summary` (daily
-totals and averages over a period), `search_foods` (your favorites, recent foods, the food list and — when
-asked — Open Food Facts), `log_food` (known foods or estimates; dishes with ingredients), `update_entry`
-(amount, meal, day, name — a dish's ingredients scale with the amount), `delete_entry` and `set_goals`.
-
-**Privacy:** the connector runs on your computer and talks only to the sync relays (and to Open Food Facts
+It has the same tools as the online connector. **Privacy:** it runs on your computer and talks only to the sync relays (and to Open Food Facts
 when Claude searches online). What it reads goes into your conversation with Claude, like anything else you
 share there. Your AI keys are never given to Claude. The sync key is stored by Claude Desktop, marked as
 sensitive.
@@ -221,46 +289,6 @@ The same server as a single file, for any MCP client. It needs [Node.js](https:/
 
 Optional: `RELAYS` (space- or comma-separated `wss://` URLs) to use other relays than the app's defaults, and
 `DEVICE_NAME` for its name in the app's device list.
-
-</details>
-
-## Use with Claude on your phone (online connector)
-
-The same connector can run online, so **claude.ai and the Claude phone apps** can use your food log too —
-even with your computer off. It runs on [Vercel](https://vercel.com)'s free plan, in your own account; set
-it up once (a computer makes it easier), and turn on **Sync between devices** first.
-
-1. Open [vercel.com/new](https://vercel.com/new), sign in with GitHub and **import this repository** (fork it
-   first if it isn't in your account). The settings come from `vercel.json`; leave them as they are.
-2. Before **Deploy**, add an **Environment Variable** named `SYNC_KEY` with your 12 words as the value, then
-   deploy. Opening the project's address, listed under **Domains** (like `calorie-tracker-abc.vercel.app`; not a
-   single deployment's address, which Vercel keeps private), should now say *"Sync key (SYNC_KEY): set"*.
-3. In the app: **Settings → Sync between devices → Use with Claude on your phone**, paste that address. The app
-   shows your **connector address**: `https://<project>.vercel.app/mcp/<secret>?tz=<your time zone>`.
-4. In Claude on a computer (claude.ai or the desktop app): **Customize → Connectors → + → Add custom
-   connector**, name it *Calorie Tracker*, paste the connector address, **Add**. Custom connectors are
-   available on every plan (Free: one custom connector).
-5. On your phone, the Claude app now has it too (connectors can be added only on the web or desktop, then
-   used everywhere). Ask *"what did I eat today?"* or *"log breakfast: two eggs and toast"*.
-
-**How it's protected:** the address contains a 128-bit secret derived from your sync key; any other address
-gets "Not found". Treat the address like a password — anyone with it can read and change your log. It
-changes when you change the sync key: then update `SYNC_KEY` in Vercel (**Settings → Environment
-Variables**, then **Redeploy**) and replace the connector's address in Claude. The sync key itself stays
-in your Vercel project's settings; the connector uses it to decrypt your log for Claude, and never logs it.
-
-**Time zone:** servers run on UTC, so the address carries your time zone (`?tz=Europe/Berlin`) for "today"
-and meal times; a `TIME_ZONE` environment variable works too. It appears in the app's device list as
-**Claude (online connector)**; `RELAYS` and `DEVICE_NAME` work as for the Desktop connector. Each push to the
-repository redeploys it.
-
-<details>
-<summary>Somewhere other than Vercel</summary>
-
-`npm run build:cloud` builds it to `.vercel/output/functions/mcp.func/index.mjs`, one file with everything
-included. Any host that runs Node.js 22 and gives it an HTTPS address works: start it with
-`SYNC_KEY="…" PORT=8787 node index.mjs` and use `https://<your host>/mcp/<secret>` (the app shows the secret
-once you paste the host). It speaks MCP's Streamable HTTP without sessions, so it suits serverless hosts.
 
 </details>
 

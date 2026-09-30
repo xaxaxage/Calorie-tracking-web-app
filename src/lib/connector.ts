@@ -1,8 +1,14 @@
+import { DEFAULT_RELAYS } from './sync/state';
+
 /**
- * The online Claude connector's address (mcp/cloud.ts): the host of the
- * person's own deployment, a secret token derived from the sync key, and
- * their time zone, so "today" and meal times match the phone.
+ * The online Claude connector (mcp/cloud.ts): one server that everyone using
+ * the app can connect Claude to. Each person's address carries their sync key,
+ * sealed by that server (POST /link), plus their time zone, so "today" and
+ * meal times match the phone.
  */
+
+/** The connector this app uses unless someone picks their own; a fork sets VITE_CONNECTOR_HOST at build time. */
+export const SHARED_CONNECTOR_HOST = (import.meta.env.VITE_CONNECTOR_HOST ?? '').trim() || 'calorie-tracking-web-app.vercel.app';
 
 const HOST_KEY = 'calorie-tracker:connector-host';
 
@@ -18,14 +24,8 @@ export function connectorHost(text: string): string {
   }
 }
 
-export function connectorUrl(host: string, token: string, zone?: string): string {
-  // Slashes read better unescaped ("Europe/Kyiv"); a "+" must stay escaped.
-  const tz = zone ? `?tz=${encodeURIComponent(zone).replace(/%2F/gi, '/')}` : '';
-  return `https://${host}/mcp/${token}${tz}`;
-}
-
-/** The host typed on this device, kept here only (it's no secret, just not worth syncing). */
-export function savedConnectorHost(): string {
+/** A connector server of one's own, set on this device; empty for the shared one. */
+export function ownConnectorHost(): string {
   try {
     return localStorage.getItem(HOST_KEY) ?? '';
   } catch {
@@ -33,7 +33,7 @@ export function savedConnectorHost(): string {
   }
 }
 
-export function saveConnectorHost(host: string) {
+export function saveOwnConnectorHost(host: string) {
   try {
     if (host) localStorage.setItem(HOST_KEY, host);
     else localStorage.removeItem(HOST_KEY);
@@ -48,4 +48,31 @@ export function timeZone(): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+const sameRelays = (relays: string[]) =>
+  relays.length === DEFAULT_RELAYS.length && relays.every((r) => DEFAULT_RELAYS.includes(r));
+
+export function connectorUrl(host: string, token: string, zone?: string, relays: string[] = DEFAULT_RELAYS): string {
+  const query = new URLSearchParams();
+  if (zone) query.set('tz', zone);
+  if (!sameRelays(relays)) query.set('r', relays.join(','));
+  // Slashes and commas read better unescaped ("Europe/Kyiv"); a "+" must stay escaped.
+  const q = query.toString().replace(/%2F/gi, '/').replace(/%2C/gi, ',').replace(/%3A/gi, ':');
+  return `https://${host}/mcp/${token}${q ? `?${q}` : ''}`;
+}
+
+/** Ask the connector server for this sync key's address (the sealed part). */
+export async function fetchConnectorToken(host: string, syncKey: string, signal?: AbortSignal): Promise<string> {
+  let res: Response;
+  try {
+    // Plain text, so the browser sends it straight away (no CORS preflight).
+    res = await fetch(`https://${host}/link`, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ syncKey }), signal });
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') throw err;
+    throw new Error(`Couldn't reach the connector at ${host}. Check your connection and try again.`);
+  }
+  const body = (await res.json().catch(() => ({}))) as { token?: string; error?: string };
+  if (res.ok && typeof body.token === 'string') return body.token;
+  throw new Error(body.error ?? `The connector at ${host} didn't answer as expected (${res.status}).`);
 }
