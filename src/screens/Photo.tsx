@@ -24,8 +24,13 @@ interface Done {
   id: number;
 }
 
+/** Where a photo came from: the camera, the photo library, or handed over with a description. */
+type Source = 'camera' | 'library' | 'handoff';
+
 type Phase =
   | { state: 'pick'; message?: string }
+  /** Taken, not sent yet: look at it, describe it, retake it. */
+  | { state: 'review'; image: PreparedImage; from: Exclude<Source, 'handoff'> }
   | { state: 'analyzing'; image: PreparedImage; progress?: string }
   | Done
   | { state: 'error'; image: PreparedImage; message: string; fix?: AiError['fix'] };
@@ -48,6 +53,8 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
   // The note as typed right now, for estimates started from a file picker callback.
   const noteRef = useRef(note);
   noteRef.current = note;
+  // Photos already kept on this phone, so trying again doesn't keep one twice.
+  const kept = useRef(new WeakSet<PreparedImage>());
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -66,6 +73,10 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
   const analyze = async (image: PreparedImage) => {
     const controller = restart();
     const noteNow = noteRef.current.trim();
+    if (!kept.current.has(image)) {
+      kept.current.add(image);
+      keep(image);
+    }
     setFixing({ busy: false });
     setPhase({ state: 'analyzing', image });
     try {
@@ -136,7 +147,7 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
     });
   };
 
-  const onBlob = async (file: Blob) => {
+  const onBlob = async (file: Blob, from: Source) => {
     let image: PreparedImage;
     try {
       image = await prepareImage(file);
@@ -144,8 +155,11 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
       setPhase({ state: 'pick', message: (err as Error).message });
       return;
     }
-    keep(image);
-    await analyze(image);
+    // Handed over with a description: that's what to estimate. Otherwise, a look first.
+    if (from === 'handoff') return analyze(image);
+    abortRef.current?.abort();
+    setFixing({ busy: false });
+    setPhase({ state: 'review', image, from });
   };
 
   /** Into the Photos app: iPhone's share sheet ("Save Image"), or a download elsewhere. */
@@ -155,24 +169,22 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
       .catch(() => showToast("Couldn't save the photo."));
   };
 
-  const onFile = (input: HTMLInputElement) => {
+  const onFile = (input: HTMLInputElement, from: 'camera' | 'library') => {
     const file = input.files?.[0];
     input.value = '';
-    if (file) onBlob(file);
+    if (file) onBlob(file, from);
   };
 
   // A photo picked on Add food or Describe, with what was typed there as the note.
   useEffect(() => {
     const handed = takeHandedOffPhoto();
-    if (handed && ready) onBlob(handed);
+    if (handed && ready) onBlob(handed, 'handoff');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const retake = () => {
-    abortRef.current?.abort();
-    setFixing({ busy: false });
-    setPhase({ state: 'pick' });
-    cameraInput.current?.click();
+  /** Take another photo (or pick one). What's on screen stays until a new photo arrives, so cancelling loses nothing. */
+  const retake = (from: 'camera' | 'library' = 'camera') => {
+    (from === 'camera' ? cameraInput : libraryInput).current?.click();
   };
 
   const image = phase.state === 'pick' ? undefined : phase.image;
@@ -196,7 +208,7 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
         class="sr-only"
         tabIndex={-1}
         aria-hidden="true"
-        onChange={(e) => onFile(e.target as HTMLInputElement)}
+        onChange={(e) => onFile(e.target as HTMLInputElement, 'camera')}
       />
       <input
         ref={libraryInput}
@@ -205,7 +217,7 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
         class="sr-only"
         tabIndex={-1}
         aria-hidden="true"
-        onChange={(e) => onFile(e.target as HTMLInputElement)}
+        onChange={(e) => onFile(e.target as HTMLInputElement, 'library')}
       />
 
       {image ? (
@@ -255,24 +267,10 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
         ) : (
           <>
             {phase.message && <div class="notice plain">{phase.message}</div>}
-            <div class="field">
-              <label for="photo-note" class="field-label">
-                Anything the photo doesn't show? <span class="muted">(optional)</span>
-              </label>
-              <textarea
-                id="photo-note"
-                class="input textarea"
-                rows={2}
-                maxLength={MAX_NOTE}
-                placeholder="e.g. fried in butter, the drink is Coke Zero, I ate half"
-                value={note}
-                onInput={(e) => setNote((e.target as HTMLTextAreaElement).value)}
-              />
-            </div>
             <p class="lede">
-              Snap your plate from above with everything in view. {providerName(settings)} lists what it sees
-              {note.trim() ? ', using your note,' : ''} and estimates each portion — you can adjust the grams or tell it
-              what's off before adding.
+              Snap your plate from above with everything in view. Then you can add anything the photo doesn't show, and{' '}
+              {providerName(settings)} estimates each portion — you can adjust the grams or tell it what's off before
+              adding.
             </p>
             <div class="button-pair">
               <button type="button" class="btn-secondary" onClick={() => libraryInput.current?.click()}>
@@ -286,11 +284,39 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
           </>
         ))}
 
+      {phase.state === 'review' && (
+        <>
+          <div class="field">
+            <label for="photo-note" class="field-label">
+              Anything the photo doesn't show? <span class="muted">(optional)</span>
+            </label>
+            <textarea
+              id="photo-note"
+              class="input textarea"
+              rows={2}
+              maxLength={MAX_NOTE}
+              placeholder="e.g. fried in butter, the drink is Coke Zero, I ate half"
+              value={note}
+              onInput={(e) => setNote((e.target as HTMLTextAreaElement).value)}
+            />
+          </div>
+          <div class="button-pair">
+            <button type="button" class="btn-secondary" onClick={() => retake(phase.from)}>
+              {phase.from === 'camera' ? 'Retake' : 'Choose another'}
+            </button>
+            <button type="button" class="btn-primary" onClick={() => analyze(phase.image)}>
+              Estimate
+            </button>
+          </div>
+          <ProviderLine />
+        </>
+      )}
+
       {phase.state === 'error' && (
         <>
           <div class="notice plain">{phase.message}</div>
           <div class="button-pair">
-            <button type="button" class="btn-secondary" onClick={retake}>
+            <button type="button" class="btn-secondary" onClick={() => retake()}>
               Retake
             </button>
             {phase.fix === 'use-gemini' ? (
@@ -321,7 +347,7 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
               {quip('noFoodInPhoto', String(done.id))} Try a closer photo with the whole plate in view.
             </span>
           </div>
-          <button type="button" class="btn-primary" onClick={retake}>
+          <button type="button" class="btn-primary" onClick={() => retake()}>
             Retake
           </button>
         </>
@@ -337,7 +363,7 @@ export function Photo({ meal, date, initialNote = '' }: { meal: MealId; date: st
           numbered
           title={`${done.items.length} ${done.items.length === 1 ? 'item' : 'items'} found`}
           note={`Estimated by ${done.source}${done.corrections.length ? ', with your corrections' : ''} — check the portions. Set 0 g to leave an item out.`}
-          secondary={{ label: 'Retake', onClick: retake }}
+          secondary={{ label: 'Retake', onClick: () => retake() }}
           correction={{
             provider: providerName(settings),
             history: done.corrections,

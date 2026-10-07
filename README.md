@@ -25,10 +25,11 @@ barcode scanner, photo estimate and quick add.
   AI estimates any food or dish, amounts included.
 - **Photo estimate** – snap your plate; the AI identifies each item and estimates its weight and
   nutrition. Adjust the grams, then add everything at once. Needs an AI key (a free Gemini key works).
-  Add a note for what the photo can't show ("fried in butter, I ate half") — or type the description first in
-  Add food and tap **Add a photo too** — and both go to the AI together.
-- **Meal photos** – with **Settings → Logging → Keep meal photos** on (the default), every photo you take for an
-  estimate is kept on the phone with its meal: it shows on that meal's screen, and **Meal photos** (linked from
+  After taking the photo you see it first: add a note for what it can't show ("fried in butter, I ate half"),
+  **Retake** it (or **Choose another** from the library), then **Estimate** — nothing is sent to the AI before
+  that. Or type the description first in Add food and tap **Add a photo too**, and both go to the AI together.
+- **Meal photos** – with **Settings → Logging → Keep meal photos** on (the default), every photo you estimate
+  is kept on the phone with its meal: it shows on that meal's screen, and **Meal photos** (linked from
   Settings) lists them all by day. **Save to Photos** — on the photo right after taking it, in the photo viewer, or
   for a whole day — puts them in your Photos app through the share sheet (**Save Image**); iPhone doesn't let web
   apps add to Photos without that tap. Photos stay on the device: not synced, not in backups.
