@@ -35,11 +35,11 @@ skill. Read it first. This file holds what's specific to this app.
 - Meal photos are kept in IndexedDB (on by default), never synced or backed up.
 - Sync uses weekly parts for entries, plus meta, ai, `device:<id>` and retired markers. HKDF salt is
   `calorie-tracker-sync`.
-- Humor never jokes about weight, "good"/"bad" food or willpower (a test enforces it).
 
 ## Known gaps
 
 - The Playwright end-to-end scripts were written outside the repo, so a new session has none. Add them under
-  `tests/e2e/` when touching a flow, mocking Gemini, Anthropic and Open Food Facts with `context.route`.
-- The habit and gym trackers' repos and connector domains aren't recorded yet. When they come up, add them to the
-  app-playbook skill.
+  `e2e/` when touching a flow, set up like the gym tracker's (xaxaxage/Gym-traininigs-tracking-app), mocking Gemini,
+  Anthropic and Open Food Facts with `context.route`.
+- The look is the older one. The gym tracker has the refined style (borderless soft cards, fewer frames and colors);
+  see the app-playbook skill before restyling.
